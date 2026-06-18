@@ -1,0 +1,51 @@
+{
+  "name": "ATS-Optimized",
+  "description": "A straightforward single-column layout built for screeners, parsers, and recruiter skim speed.",
+  "thumbnailUrl": "/template-thumbnails/ats.svg",
+  "engine": "cvcraft",
+  "category": "ats",
+  "config": {
+    "defaults": {
+      "fontFamily": "Arial, sans-serif",
+      "accentColor": "#334155",
+      "margins": {
+        "top": 0.65,
+        "right": 0.65,
+        "bottom": 0.65,
+        "left": 0.65
+      },
+      "bulletStyle": "circle",
+      "pageDensity": "compact"
+    },
+    "options": {
+      "fontFamilies": [
+        { "label": "Arial", "value": "Arial, sans-serif" },
+        { "label": "Trebuchet", "value": "'Trebuchet MS', sans-serif" },
+        { "label": "Georgia", "value": "Georgia, serif" },
+        { "label": "Garamond", "value": "Garamond, serif" }
+      ],
+      "accentColors": [
+        { "label": "Slate", "value": "#334155" },
+        { "label": "Lagoon", "value": "#0f766e" },
+        { "label": "Forest", "value": "#166534" },
+        { "label": "Terracotta", "value": "#a04f2f" }
+      ],
+      "bulletStyles": [
+        { "label": "Circle", "value": "circle" },
+        { "label": "Dash", "value": "dash" },
+        { "label": "Square", "value": "square" },
+        { "label": "Arrow", "value": "arrow" }
+      ],
+      "pageDensity": [
+        { "label": "Compact", "value": "compact" },
+        { "label": "Balanced", "value": "balanced" },
+        { "label": "Comfortable", "value": "comfortable" }
+      ],
+      "marginRange": {
+        "min": 0.45,
+        "max": 1.05,
+        "step": 0.05
+      }
+    }
+  }
+}

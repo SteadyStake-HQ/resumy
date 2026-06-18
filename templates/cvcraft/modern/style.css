@@ -1,0 +1,208 @@
+@page {
+  size: A4;
+  margin: 0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: #eef3f1;
+  color: var(--resume-text);
+  font-family: var(--resume-font-family);
+  font-size: var(--resume-base-size);
+  line-height: var(--resume-line-height);
+}
+
+body {
+  padding: 24px;
+}
+
+.resume {
+  min-height: calc(1122px - 48px);
+  background:
+    radial-gradient(circle at top left, rgba(var(--resume-accent-rgb) / 0.08), transparent 28%),
+    var(--resume-paper);
+  border-radius: 28px;
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  overflow: hidden;
+  box-shadow: 0 16px 48px rgba(23, 35, 38, 0.12);
+}
+
+.sidebar {
+  background:
+    linear-gradient(180deg, rgba(var(--resume-accent-rgb) / 0.2), rgba(var(--resume-accent-rgb) / 0.06)),
+    #f1faf8;
+  padding: var(--resume-margin-top) var(--resume-margin-right);
+  border-right: 1px solid rgba(var(--resume-accent-rgb) / 0.18);
+}
+
+.main {
+  padding: var(--resume-margin-top) var(--resume-margin-right) var(--resume-margin-bottom) var(--resume-margin-left);
+}
+
+.identity h1 {
+  margin: 0;
+  font-size: 2.05rem;
+  line-height: 1.05;
+}
+
+.identity p {
+  margin: 0.65rem 0 0;
+  color: var(--resume-muted);
+}
+
+.contact-list,
+.skill-list,
+.experience-list,
+.education-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sidebar-section + .sidebar-section,
+.section + .section {
+  margin-top: var(--resume-section-gap);
+}
+
+.section-label {
+  margin: 0 0 var(--resume-heading-gap);
+  color: var(--resume-accent);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+
+.contact-item + .contact-item,
+.education-item + .education-item,
+.experience-item + .experience-item {
+  margin-top: var(--resume-paragraph-gap);
+}
+
+.skill-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.skill-pill {
+  border-radius: 999px;
+  background: rgba(var(--resume-accent-rgb) / 0.12);
+  color: var(--resume-accent);
+  padding: 0.32rem 0.7rem;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.summary {
+  color: var(--resume-muted);
+  margin: 0;
+}
+
+.experience-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: baseline;
+}
+
+.experience-title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.experience-meta {
+  margin: 0.2rem 0 0;
+  color: var(--resume-muted);
+  font-size: 0.88rem;
+}
+
+.experience-bullets {
+  list-style: none;
+  margin: 0.65rem 0 0;
+  padding: 0;
+}
+
+.experience-bullets li {
+  position: relative;
+  padding-left: 1.05rem;
+}
+
+.experience-bullets li + li {
+  margin-top: 0.32rem;
+}
+
+.experience-bullets li::before {
+  content: var(--resume-bullet-marker);
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: var(--resume-accent);
+  font-weight: 700;
+}
+
+.education-title {
+  margin: 0;
+  font-size: 0.97rem;
+}
+
+.education-meta {
+  margin: 0.2rem 0 0;
+  color: var(--resume-muted);
+  font-size: 0.88rem;
+}
+
+/* ── Print / PDF fixes ────────────────────────────────────────────────────
+ *
+ * Problem: the .sidebar <div> background only paints over the DOM area of
+ * that element on the first physical page.  Page 2+ have no sidebar colour.
+ *
+ * Solution: in print mode, paint the sidebar column via the <body> background
+ * gradient instead.  Body backgrounds are re-rendered fresh on every page by
+ * the print engine, so the column tint appears consistently on all pages.
+ * The .sidebar div itself becomes transparent so the body gradient shows
+ * through, while the CSS grid keeps the columns correctly aligned.
+ * ─────────────────────────────────────────────────────────────────────── */
+@media print {
+  /* Body gradient: sidebar tint (0 → 220px) then white for the main column.
+     220px matches grid-template-columns exactly so they line up perfectly. */
+  html, body {
+    background:
+      linear-gradient(
+        to right,
+        rgba(var(--resume-accent-rgb) / 0.14) 0px,
+        rgba(var(--resume-accent-rgb) / 0.14) 220px,
+        var(--resume-paper)                   220px,
+        var(--resume-paper)                   100%
+      ) !important;
+  }
+
+  /* Keep grid layout so columns stay aligned with the body gradient */
+  .resume {
+    display: grid !important;
+    grid-template-columns: 220px 1fr !important;
+    background: transparent !important;
+  }
+
+  /* Sidebar: transparent background — body gradient provides the column tint.
+     Fixed padding replaces the user-margin padding; @page margin handles the
+     page edge spacing so there is no double-indentation. */
+  .sidebar {
+    background: transparent !important;
+    border-right: 1px solid rgba(var(--resume-accent-rgb) / 0.18) !important;
+    padding: 24px 18px !important;
+  }
+
+  /* Main column: transparent, fixed inner padding */
+  .main {
+    background: transparent !important;
+    padding: 24px 22px 24px 22px !important;
+  }
+}

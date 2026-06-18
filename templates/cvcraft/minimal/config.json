@@ -1,0 +1,51 @@
+{
+  "name": "Minimal",
+  "description": "A spacious editorial layout with quiet accents and restrained skill chips.",
+  "thumbnailUrl": "/template-thumbnails/minimal.svg",
+  "engine": "cvcraft",
+  "category": "minimal",
+  "config": {
+    "defaults": {
+      "fontFamily": "Arial, sans-serif",
+      "accentColor": "#166534",
+      "margins": {
+        "top": 0.7,
+        "right": 0.75,
+        "bottom": 0.75,
+        "left": 0.75
+      },
+      "bulletStyle": "dash",
+      "pageDensity": "comfortable"
+    },
+    "options": {
+      "fontFamilies": [
+        { "label": "Arial", "value": "Arial, sans-serif" },
+        { "label": "Trebuchet", "value": "'Trebuchet MS', sans-serif" },
+        { "label": "Georgia", "value": "Georgia, serif" },
+        { "label": "Garamond", "value": "Garamond, serif" }
+      ],
+      "accentColors": [
+        { "label": "Forest", "value": "#166534" },
+        { "label": "Lagoon", "value": "#0f766e" },
+        { "label": "Terracotta", "value": "#a04f2f" },
+        { "label": "Slate", "value": "#475569" }
+      ],
+      "bulletStyles": [
+        { "label": "Dash", "value": "dash" },
+        { "label": "Circle", "value": "circle" },
+        { "label": "Square", "value": "square" },
+        { "label": "Arrow", "value": "arrow" }
+      ],
+      "pageDensity": [
+        { "label": "Comfortable", "value": "comfortable" },
+        { "label": "Balanced", "value": "balanced" },
+        { "label": "Compact", "value": "compact" }
+      ],
+      "marginRange": {
+        "min": 0.55,
+        "max": 1.2,
+        "step": 0.05
+      }
+    }
+  }
+}

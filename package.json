@@ -1,0 +1,62 @@
+{
+  "name": "resume",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "node scripts/dev-with-taskiq.mjs",
+    "build": "next build --webpack",
+    "start": "next start",
+    "lint": "eslint",
+    "prisma:generate": "prisma generate",
+    "db:push": "tsx scripts/push-neon-schema.ts",
+    "taskiq:setup": "node scripts/setup-taskiq.mjs",
+    "seed:templates": "tsx scripts/seed-design-templates.ts",
+    "seed:articles": "tsx scripts/seed-articles.ts"
+  },
+  "dependencies": {
+    "@ckeditor/ckeditor5-react": "^11.1.2",
+    "@google/generative-ai": "^0.24.1",
+    "@headlessui/react": "^2.2.9",
+    "@prisma/adapter-pg": "^7.8.0",
+    "@prisma/client": "^6.19.3",
+    "@tiptap/react": "^3.22.5",
+    "@tiptap/starter-kit": "^3.22.5",
+    "bcryptjs": "^3.0.3",
+    "ckeditor5": "^48.0.1",
+    "country-list": "^2.4.1",
+    "docx": "^9.6.1",
+    "encoding": "^0.1.13",
+    "handlebars": "^4.7.8",
+    "jsonrepair": "^3.14.0",
+    "mammoth": "^1.12.0",
+    "next": "16.1.6",
+    "next-auth": "^4.24.13",
+    "openai": "^6.29.0",
+    "pdf-parse": "^2.4.5",
+    "pg": "^8.21.0",
+    "prisma": "^6.19.3",
+    "process": "^0.11.10",
+    "puppeteer": "^24.39.1",
+    "react": "19.2.3",
+    "react-country-flag": "^3.1.0",
+    "react-dom": "19.2.3",
+    "react-draggable": "^4.5.0",
+    "server-only": "^0.0.1",
+    "sweetalert2": "^11.26.23"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/pg": "^8.20.0",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.6",
+    "tailwindcss": "^4",
+    "tsx": "^4.21.0",
+    "typescript": "^5"
+  },
+  "optionalDependencies": {
+    "lightningcss-linux-x64-gnu": "^1.31.1"
+  }
+}

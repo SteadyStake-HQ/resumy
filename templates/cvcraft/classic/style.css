@@ -1,0 +1,132 @@
+@page {
+  size: A4;
+  margin: 0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: #f3eee8;
+  color: var(--resume-text);
+  font-family: var(--resume-font-family);
+  font-size: var(--resume-base-size);
+  line-height: var(--resume-line-height);
+}
+
+body {
+  padding: 26px;
+}
+
+.resume {
+  min-height: calc(1122px - 52px);
+  background: var(--resume-paper);
+  border-radius: 18px;
+  padding: var(--resume-margin-top) var(--resume-margin-right) var(--resume-margin-bottom) var(--resume-margin-left);
+  box-shadow: 0 14px 42px rgba(30, 41, 59, 0.12);
+}
+
+.resume-header {
+  text-align: center;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--resume-line);
+}
+
+.resume-header h1 {
+  margin: 0;
+  font-size: 2rem;
+}
+
+.resume-header p {
+  margin: 0.45rem 0 0;
+  color: var(--resume-muted);
+}
+
+.section {
+  margin-top: var(--resume-section-gap);
+}
+
+.section-heading {
+  margin: 0 0 var(--resume-heading-gap);
+  text-align: center;
+  color: var(--resume-accent);
+  font-size: 0.8rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+
+.summary {
+  margin: 0;
+  text-align: center;
+  color: var(--resume-muted);
+}
+
+.skill-line {
+  margin: 0;
+  text-align: center;
+}
+
+.experience-item + .experience-item,
+.education-item + .education-item {
+  margin-top: var(--resume-paragraph-gap);
+}
+
+.experience-title,
+.education-title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.experience-meta,
+.education-meta {
+  margin: 0.2rem 0 0;
+  color: var(--resume-muted);
+}
+
+.experience-bullets {
+  list-style: none;
+  margin: 0.55rem 0 0;
+  padding: 0;
+}
+
+.experience-bullets li {
+  position: relative;
+  padding-left: 1rem;
+}
+
+.experience-bullets li + li {
+  margin-top: 0.3rem;
+}
+
+.experience-bullets li::before {
+  content: var(--resume-bullet-marker);
+  position: absolute;
+  left: 0;
+  color: var(--resume-accent);
+  font-weight: 700;
+}
+
+/* ── Print / PDF fixes ────────────────────────────────────────────────────
+ * The global createPrintFixStyleSheet sets .resume { padding: 0 } to let
+ * @page margin handle all edge spacing.  Restore only the internal header
+ * padding so the name doesn't crash into the border-bottom.
+ * ─────────────────────────────────────────────────────────────────────── */
+@media print {
+  html, body {
+    background: #f3eee8 !important;
+  }
+
+  .resume {
+    /* @page margin provides outer spacing; no padding needed on the element */
+    background: var(--resume-paper) !important;
+  }
+
+  .resume-header {
+    /* Keep a small top breathing room inside the header block */
+    padding-top: 0.5rem !important;
+  }
+}

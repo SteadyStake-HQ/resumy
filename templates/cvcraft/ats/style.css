@@ -1,0 +1,123 @@
+@page {
+  size: A4;
+  margin: 0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: #f3f4f6;
+  color: var(--resume-text);
+  font-family: var(--resume-font-family);
+  font-size: var(--resume-base-size);
+  line-height: var(--resume-line-height);
+}
+
+body {
+  padding: 20px;
+}
+
+.resume {
+  min-height: calc(1122px - 40px);
+  background: var(--resume-paper);
+  border-radius: 10px;
+  padding: var(--resume-margin-top) var(--resume-margin-right) var(--resume-margin-bottom) var(--resume-margin-left);
+  border: 1px solid #d9dee5;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 1.9rem;
+}
+
+.header p {
+  margin: 0.4rem 0 0;
+  color: var(--resume-muted);
+}
+
+.section {
+  margin-top: var(--resume-section-gap);
+}
+
+.section-heading {
+  margin: 0 0 var(--resume-heading-gap);
+  border-bottom: 1px solid #d9dee5;
+  color: var(--resume-accent);
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding-bottom: 0.28rem;
+}
+
+.summary,
+.skill-line {
+  margin: 0;
+}
+
+.experience-item + .experience-item,
+.education-item + .education-item {
+  margin-top: var(--resume-paragraph-gap);
+}
+
+.experience-title,
+.education-title {
+  margin: 0;
+  font-size: 0.98rem;
+}
+
+.experience-meta,
+.education-meta {
+  margin: 0.18rem 0 0;
+  color: var(--resume-muted);
+}
+
+.experience-bullets {
+  list-style: none;
+  margin: 0.55rem 0 0;
+  padding: 0;
+}
+
+.experience-bullets li {
+  position: relative;
+  padding-left: 0.95rem;
+}
+
+.experience-bullets li + li {
+  margin-top: 0.24rem;
+}
+
+.experience-bullets li::before {
+  content: var(--resume-bullet-marker);
+  position: absolute;
+  left: 0;
+  color: var(--resume-accent);
+  font-weight: 700;
+}
+
+/* ── Print / PDF fixes ──────────────────────────────────────────────────── */
+@media print {
+  html, body {
+    background: #f3f4f6 !important;
+  }
+
+  .resume {
+    /* ATS template uses a subtle border around the card; keep it but ensure
+       the background is white and the outer frame is removed by the global
+       print fix.  The border on .resume itself can stay for the ATS style. */
+    background: var(--resume-paper) !important;
+    border: 1px solid #d9dee5 !important;
+  }
+
+  /* First-child section needs a small top gap since .resume padding was
+     stripped by the global print fix. */
+  .resume > .section:first-child,
+  .header {
+    padding-top: 0.5rem !important;
+  }
+}

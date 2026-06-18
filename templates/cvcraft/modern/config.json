@@ -1,0 +1,51 @@
+{
+  "name": "Modern",
+  "description": "A confident two-column layout with a rich accent rail and bold section rhythm.",
+  "thumbnailUrl": "/template-thumbnails/modern.svg",
+  "engine": "cvcraft",
+  "category": "modern",
+  "config": {
+    "defaults": {
+      "fontFamily": "'Trebuchet MS', sans-serif",
+      "accentColor": "#0f766e",
+      "margins": {
+        "top": 0.55,
+        "right": 0.55,
+        "bottom": 0.6,
+        "left": 0.55
+      },
+      "bulletStyle": "arrow",
+      "pageDensity": "balanced"
+    },
+    "options": {
+      "fontFamilies": [
+        { "label": "Trebuchet", "value": "'Trebuchet MS', sans-serif" },
+        { "label": "Arial", "value": "Arial, sans-serif" },
+        { "label": "Georgia", "value": "Georgia, serif" },
+        { "label": "Garamond", "value": "Garamond, serif" }
+      ],
+      "accentColors": [
+        { "label": "Lagoon", "value": "#0f766e" },
+        { "label": "Coral", "value": "#b45309" },
+        { "label": "Midnight", "value": "#1d3557" },
+        { "label": "Berry", "value": "#9d174d" }
+      ],
+      "bulletStyles": [
+        { "label": "Arrow", "value": "arrow" },
+        { "label": "Circle", "value": "circle" },
+        { "label": "Square", "value": "square" },
+        { "label": "Dash", "value": "dash" }
+      ],
+      "pageDensity": [
+        { "label": "Balanced", "value": "balanced" },
+        { "label": "Comfortable", "value": "comfortable" },
+        { "label": "Compact", "value": "compact" }
+      ],
+      "marginRange": {
+        "min": 0.45,
+        "max": 1.05,
+        "step": 0.05
+      }
+    }
+  }
+}

@@ -1,0 +1,64 @@
+<article class="resume minimal-template">
+  <div class="content">
+    <header class="header">
+      <h1>{{resume.personalInfo.name}}</h1>
+      {{#if contactItems.length}}
+        <p>{{join contactItems}}</p>
+      {{/if}}
+    </header>
+
+    {{#if hasSummary}}
+      <section class="section">
+        <p class="section-heading">Summary</p>
+        <p class="summary">{{resume.summary}}</p>
+      </section>
+    {{/if}}
+
+    {{#if hasSkills}}
+      <section class="section">
+        <p class="section-heading">Skills</p>
+        <div class="skill-grid">
+          {{#each skillGroups}}
+            <span class="skill-chip"><strong>{{label}}:</strong> {{join skills " • "}}</span>
+          {{/each}}
+        </div>
+      </section>
+    {{/if}}
+
+    {{#if hasExperience}}
+      <section class="section">
+        <p class="section-heading">Experience</p>
+        {{#each resume.experience}}
+          <article class="experience-item">
+            <div class="experience-header">
+              <h2 class="experience-title">{{title}}{{#if company}} — {{company}}{{/if}}</h2>
+              <p class="experience-meta">{{startDate}}{{#if endDate}} - {{endDate}}{{/if}}</p>
+            </div>
+            {{#if location}}
+              <p class="experience-meta">{{location}}</p>
+            {{/if}}
+            {{#if description.length}}
+              <ul class="experience-bullets">
+                {{#each description}}
+                  <li>{{this}}</li>
+                {{/each}}
+              </ul>
+            {{/if}}
+          </article>
+        {{/each}}
+      </section>
+    {{/if}}
+
+    {{#if hasEducation}}
+      <section class="section">
+        <p class="section-heading">Education</p>
+        {{#each resume.education}}
+          <article class="education-item">
+            <h3 class="education-title">{{degree}}</h3>
+            <p class="education-meta">{{institution}}{{#if year}} • {{year}}{{/if}}</p>
+          </article>
+        {{/each}}
+      </section>
+    {{/if}}
+  </div>
+</article>

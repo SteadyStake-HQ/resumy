@@ -1,0 +1,75 @@
+<article class="resume modern-template">
+  <aside class="sidebar">
+    <header class="identity">
+      <p class="section-label">Profile</p>
+      <h1>{{resume.personalInfo.name}}</h1>
+      {{#if hasSummary}}
+        <p>{{resume.summary}}</p>
+      {{/if}}
+    </header>
+
+    {{#if contactItems.length}}
+      <section class="sidebar-section">
+        <p class="section-label">Contact</p>
+        <ul class="contact-list">
+          {{#each contactItems}}
+            <li class="contact-item">{{this}}</li>
+          {{/each}}
+        </ul>
+      </section>
+    {{/if}}
+
+    {{#if hasSkills}}
+      <section class="sidebar-section">
+        <p class="section-label">Skills</p>
+        <ul class="skill-list">
+          {{#each skillGroups}}
+            <li class="skill-pill"><strong>{{label}}:</strong> {{join skills " • "}}</li>
+          {{/each}}
+        </ul>
+      </section>
+    {{/if}}
+  </aside>
+
+  <main class="main">
+    {{#if hasExperience}}
+      <section class="section">
+        <p class="section-label">Experience</p>
+        <ul class="experience-list">
+          {{#each resume.experience}}
+            <li class="experience-item">
+              <div class="experience-header">
+                <div>
+                  <h2 class="experience-title">{{title}}</h2>
+                  <p class="experience-meta">{{company}}{{#if location}} • {{location}}{{/if}}</p>
+                </div>
+                <p class="experience-meta">{{startDate}}{{#if endDate}} - {{endDate}}{{/if}}</p>
+              </div>
+              {{#if description.length}}
+                <ul class="experience-bullets">
+                  {{#each description}}
+                    <li>{{this}}</li>
+                  {{/each}}
+                </ul>
+              {{/if}}
+            </li>
+          {{/each}}
+        </ul>
+      </section>
+    {{/if}}
+
+    {{#if hasEducation}}
+      <section class="section">
+        <p class="section-label">Education</p>
+        <ul class="education-list">
+          {{#each resume.education}}
+            <li class="education-item">
+              <h3 class="education-title">{{degree}}</h3>
+              <p class="education-meta">{{institution}}{{#if year}} • {{year}}{{/if}}</p>
+            </li>
+          {{/each}}
+        </ul>
+      </section>
+    {{/if}}
+  </main>
+</article>

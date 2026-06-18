@@ -1,0 +1,51 @@
+{
+  "name": "Classic",
+  "description": "A formal, centered presentation with serif-friendly spacing for traditional applications.",
+  "thumbnailUrl": "/template-thumbnails/classic.svg",
+  "engine": "cvcraft",
+  "category": "classic",
+  "config": {
+    "defaults": {
+      "fontFamily": "Georgia, serif",
+      "accentColor": "#7c3f1d",
+      "margins": {
+        "top": 0.75,
+        "right": 0.7,
+        "bottom": 0.75,
+        "left": 0.7
+      },
+      "bulletStyle": "circle",
+      "pageDensity": "comfortable"
+    },
+    "options": {
+      "fontFamilies": [
+        { "label": "Georgia", "value": "Georgia, serif" },
+        { "label": "Garamond", "value": "Garamond, serif" },
+        { "label": "Arial", "value": "Arial, sans-serif" },
+        { "label": "Trebuchet", "value": "'Trebuchet MS', sans-serif" }
+      ],
+      "accentColors": [
+        { "label": "Walnut", "value": "#7c3f1d" },
+        { "label": "Slate", "value": "#334155" },
+        { "label": "Forest", "value": "#166534" },
+        { "label": "Midnight", "value": "#1d3557" }
+      ],
+      "bulletStyles": [
+        { "label": "Circle", "value": "circle" },
+        { "label": "Dash", "value": "dash" },
+        { "label": "Square", "value": "square" },
+        { "label": "Arrow", "value": "arrow" }
+      ],
+      "pageDensity": [
+        { "label": "Comfortable", "value": "comfortable" },
+        { "label": "Balanced", "value": "balanced" },
+        { "label": "Compact", "value": "compact" }
+      ],
+      "marginRange": {
+        "min": 0.55,
+        "max": 1.2,
+        "step": 0.05
+      }
+    }
+  }
+}

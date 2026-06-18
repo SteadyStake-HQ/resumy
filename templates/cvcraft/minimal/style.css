@@ -1,0 +1,143 @@
+@page {
+  size: A4;
+  margin: 0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: #f4f8f4;
+  color: var(--resume-text);
+  font-family: var(--resume-font-family);
+  font-size: var(--resume-base-size);
+  line-height: var(--resume-line-height);
+}
+
+body {
+  padding: 24px;
+}
+
+.resume {
+  min-height: calc(1122px - 48px);
+  background: var(--resume-paper);
+  border-radius: 32px;
+  padding: var(--resume-margin-top) var(--resume-margin-right) var(--resume-margin-bottom) var(--resume-margin-left);
+  box-shadow: 0 18px 42px rgba(21, 37, 32, 0.1);
+}
+
+.content {
+  border-left: 4px solid rgba(var(--resume-accent-rgb) / 0.9);
+  padding-left: 1.25rem;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 2rem;
+}
+
+.header p {
+  margin: 0.45rem 0 0;
+  color: var(--resume-muted);
+}
+
+.section {
+  margin-top: var(--resume-section-gap);
+}
+
+.section-heading {
+  margin: 0 0 var(--resume-heading-gap);
+  color: var(--resume-accent);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.summary {
+  margin: 0;
+  color: var(--resume-muted);
+}
+
+.skill-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.skill-chip {
+  border: 1px solid rgba(var(--resume-accent-rgb) / 0.2);
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  background: rgba(var(--resume-accent-rgb) / 0.06);
+}
+
+.experience-item + .experience-item,
+.education-item + .education-item {
+  margin-top: var(--resume-paragraph-gap);
+}
+
+.experience-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: baseline;
+}
+
+.experience-title,
+.education-title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.experience-meta,
+.education-meta {
+  margin: 0.2rem 0 0;
+  color: var(--resume-muted);
+}
+
+.experience-bullets {
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
+}
+
+.experience-bullets li {
+  position: relative;
+  padding-left: 1rem;
+}
+
+.experience-bullets li + li {
+  margin-top: 0.32rem;
+}
+
+.experience-bullets li::before {
+  content: var(--resume-bullet-marker);
+  position: absolute;
+  left: 0;
+  color: var(--resume-accent);
+  font-weight: 700;
+}
+
+/* ── Print / PDF fixes ──────────────────────────────────────────────────── */
+@media print {
+  html, body {
+    background: #f4f8f4 !important;
+  }
+
+  .resume {
+    background: var(--resume-paper) !important;
+  }
+
+  /* The .content block has a left accent border and padding-left.
+     Those are already element-level properties so they print fine on all
+     pages.  Just restore a small top padding so the name isn't flush with
+     the top of the first page. */
+  .content {
+    padding-top: 0.5rem !important;
+  }
+}

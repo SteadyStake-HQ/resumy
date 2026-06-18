@@ -1,0 +1,179 @@
+generator client {
+  provider   = "prisma-client-js"
+  engineType = "client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                                String   @id @default(cuid())
+  email                             String   @unique
+  passwordHash                      String
+  nickname                          String   @default("")
+  country                           String   @default("")
+  membershipTier                    String   @default("free")
+  membershipStatus                  String   @default("active")
+  membershipStartedAt               DateTime @default(now())
+  membershipExpiresAt               DateTime?
+  membershipRequestedTier           String?
+  membershipRequestStatus           String   @default("none")
+  membershipRequestDate             DateTime?
+  membershipRequestReason           String   @default("")
+  preferredAI                       String   @default("openai")
+  preferredGeminiRouterIndex        Int      @default(1)
+  preferredHuggingFaceRouterIndex   Int      @default(1)
+  createdAt                         DateTime @default(now())
+  updatedAt                         DateTime @updatedAt
+
+  resumes          Resume[]
+  jobDescriptions  JobDescription[]
+  generations      Generation[]
+  backgroundTasks  BackgroundTask[]
+  designTemplates  DesignTemplate[] @relation("TemplateCreator")
+
+  @@index([membershipRequestStatus, updatedAt])
+}
+
+model Resume {
+  id             String   @id @default(cuid())
+  userId         String
+  fileName       String
+  originalUrl    String?
+  rawText        String   @default("")
+  parsedData     Json
+  analysisReport Json
+  extractionMeta Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  generations Generation[] @relation("SourceResume")
+
+  @@index([userId, createdAt])
+}
+
+model JobDescription {
+  id                     String   @id @default(cuid())
+  userId                 String
+  title                  String   @default("")
+  company                String   @default("")
+  content                String
+  parsedKeywords         Json
+  analyzedJobDescription Json?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  generations Generation[]
+
+  @@index([userId, createdAt])
+}
+
+model Generation {
+  id                    String   @id @default(cuid())
+  userId                String
+  sourceResumeId        String
+  jobDescriptionId      String?
+  publicId              String?  @unique
+  tailoredData          Json
+  editorHtml            String?
+  editorDocumentStyle   Json?
+  editorTemplateId      String?  @default("base")
+  aiModelUsed           String   @default("openai")
+  designTemplateId      String?
+  customization         Json?
+  generatedFiles        Json
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceResume   Resume          @relation("SourceResume", fields: [sourceResumeId], references: [id], onDelete: Cascade)
+  jobDescription JobDescription? @relation(fields: [jobDescriptionId], references: [id], onDelete: SetNull)
+  designTemplate DesignTemplate? @relation(fields: [designTemplateId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([sourceResumeId])
+  @@index([jobDescriptionId])
+}
+
+model DesignTemplate {
+  id           String   @id @default(cuid())
+  slug         String   @unique
+  name         String
+  description  String   @default("")
+  thumbnailUrl String?
+  engine       String   @default("cvcraft")
+  category     String   @default("modern")
+  config       Json
+  isActive     Boolean  @default(true)
+  createdBy    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  creator     User?        @relation("TemplateCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+  generations Generation[]
+
+  @@index([isActive])
+}
+
+model Article {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String   @unique
+  content     String
+  author      String   @default("Resume Foundry")
+  tags        Json
+  publishDate DateTime @default(now())
+  isPublished Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isPublished, publishDate])
+}
+
+model BackgroundTask {
+  id                 String   @id @default(cuid())
+  userId             String
+  type               String   @default("resume_analysis")
+  status             String   @default("pending")
+  title              String
+  fileName           String
+  stageKey           String   @default("queued")
+  stageLabel         String   @default("Queued")
+  progressPercent    Int      @default(0)
+  error              String?
+  resultResumeId     String?
+  resultGenerationId String?
+  replaceResumeId    String?
+  tailoringPayload   Json?
+  debugData          Json?
+  sourceFileBuffer   Bytes?
+  sourceFileMimeType String?
+  sourceFileSize     Int?
+  events             Json
+  processingToken    String?
+  startedAt          DateTime?
+  completedAt        DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([type, status])
+}
+
+model BackgroundTaskLease {
+  id         String   @id @default(cuid())
+  key        String   @unique
+  ownerToken String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([expiresAt])
+}
