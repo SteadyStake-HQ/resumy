@@ -847,7 +847,18 @@ export function RetailWorkspace({
         "The server returned an unexpected response.",
       );
 
-      if (!response.ok || !payload.task) {
+      if (!response.ok) {
+        if (payload.task) {
+          window.dispatchEvent(
+            new CustomEvent("task-queue:highlight", {
+              detail: { action: "upsert", task: payload.task },
+            }),
+          );
+        }
+        throw new Error(payload.error ?? "We couldn't queue the tailoring task.");
+      }
+
+      if (!payload.task) {
         throw new Error(payload.error ?? "We couldn't queue the tailoring task.");
       }
 

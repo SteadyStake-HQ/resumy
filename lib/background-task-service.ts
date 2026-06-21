@@ -38,7 +38,7 @@ import {
   parseResumeFallback,
 } from "@/lib/resume-processing";
 
-const TASKIQ_BRIDGE_TIMEOUT_MS = 1500;
+const TASKIQ_BRIDGE_TIMEOUT_MS = 15_000;
 const BACKGROUND_TASK_DISPATCH_LEASE_KEY = "resume-analysis-dispatch";
 const BACKGROUND_TASK_DISPATCH_LEASE_MS = 15 * 60 * 1000;
 const TASK_CANCELED_MESSAGE = "__TASK_CANCELED__";
@@ -47,6 +47,7 @@ const TASK_OWNERSHIP_LOST_MESSAGE = "__TASK_OWNERSHIP_LOST__";
 const MAX_CONCURRENT_RESUME_TASKS = 3;
 const BACKGROUND_TASK_TIMEOUT_MINUTES = 8;
 const BACKGROUND_TASK_TIMEOUT_MS = BACKGROUND_TASK_TIMEOUT_MINUTES * 60 * 1000;
+const TASKIQ_DISPATCH_TIMEOUT_MS = 2 * 60 * 1000;
 const RESUME_TEXT_EXTRACTION_TIMEOUT_MS = 90 * 1000;
 const RESUME_EXTRACTION_AI_TIMEOUT_MS = 120 * 1000;
 const HUGGINGFACE_RESUME_EXTRACTION_AI_TIMEOUT_MS = 240 * 1000;
@@ -157,6 +158,93 @@ function logTaskiqFallback(kind: "resume" | "tailoring", error: unknown) {
     `${label} Taskiq enqueue failed; using local background processing.`,
     error,
   );
+}
+
+function getSafeErrorDetails(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+
+  return {
+    name: error instanceof Error ? error.name : typeof error,
+    code: getErrorCode(error) || null,
+    message: message
+      .replace(
+        /((?:postgres(?:ql)?|redis(?:s)?):\/\/)[^@\s]+@/gi,
+        "$1[credentials redacted]@",
+      )
+      .slice(0, 800),
+  };
+}
+
+function getSafeBridgeOrigin(bridgeUrl: string) {
+  try {
+    return new URL(bridgeUrl).origin;
+  } catch {
+    return "invalid_bridge_url";
+  }
+}
+
+async function recordTaskiqDispatch(
+  taskId: string,
+  dispatch: Record<string, unknown>,
+  event: { label: string; tone?: "info" | "success" | "error" },
+  taskUpdate: Record<string, unknown> = {},
+) {
+  const now = new Date();
+  await BackgroundTask.findByIdAndUpdate(taskId, {
+    $set: {
+      ...taskUpdate,
+      "debugData.taskiqDispatch": {
+        ...dispatch,
+        updatedAt: now.toISOString(),
+      },
+    },
+    $push: {
+      events: {
+        label: event.label,
+        tone: event.tone ?? "info",
+        createdAt: now,
+      },
+    },
+  });
+}
+
+async function failTaskiqDispatch(
+  taskId: string,
+  debugId: string,
+  bridgeUrl: string,
+  startedAt: number,
+  error: unknown,
+) {
+  const details = getSafeErrorDetails(error);
+  const message = `Taskiq enqueue failed: ${details.message}`;
+
+  await recordTaskiqDispatch(
+    taskId,
+    {
+      debugId,
+      state: "failed",
+      bridgeOrigin: getSafeBridgeOrigin(bridgeUrl),
+      durationMs: Date.now() - startedAt,
+      error: details,
+    },
+    { label: message, tone: "error" },
+    {
+      status: "failed",
+      stageKey: "failed",
+      stageLabel: "Background worker could not be reached",
+      error: message,
+      completedAt: new Date(),
+      processingToken: null,
+    },
+  );
+
+  console.error("[taskiq:dispatch] enqueue_failed", {
+    taskId,
+    debugId,
+    bridgeOrigin: getSafeBridgeOrigin(bridgeUrl),
+    durationMs: Date.now() - startedAt,
+    error: details,
+  });
 }
 
 function getAppBaseUrl() {
@@ -289,6 +377,35 @@ async function failTimedOutBackgroundTasks() {
       $push: {
         events: {
           label: `Task timed out after running for more than ${BACKGROUND_TASK_TIMEOUT_MINUTES} minutes.`,
+          tone: "error",
+          createdAt: new Date(),
+        },
+      },
+    },
+  );
+}
+
+async function failStalledTaskiqDispatches() {
+  const cutoff = new Date(Date.now() - TASKIQ_DISPATCH_TIMEOUT_MS);
+  const message =
+    "The task was not acknowledged by the background worker within 2 minutes.";
+
+  await BackgroundTask.updateMany(
+    {
+      status: "pending",
+      stageKey: "starting",
+      createdAt: { $lte: cutoff },
+    },
+    {
+      status: "failed",
+      stageKey: "failed",
+      stageLabel: "Background worker did not acknowledge the task",
+      error: message,
+      completedAt: new Date(),
+      processingToken: null,
+      $push: {
+        events: {
+          label: message,
           tone: "error",
           createdAt: new Date(),
         },
@@ -579,19 +696,23 @@ function enqueueLocalResumeTailoringProcessing(taskId: string) {
 export async function listBackgroundTasksForUser(userId: string) {
   await connectToDatabase();
 
-  // Fire maintenance operations as non-blocking background work so they never
-  // delay the list response. On a cold database connection these writes
-  // are the primary cause of the 15-second timeout that leaves the task-queue
-  // panel stuck in "loading". The user's task list is returned immediately.
+  // Never launch local processing after a production serverless response.
+  // Enqueueing is awaited by the upload/tailoring routes; polling only marks
+  // old unacknowledged dispatches as failed so the user can retry them.
   void failTimedOutBackgroundTasks().catch((e) => {
     console.warn("[listBackgroundTasksForUser] failTimedOutBackgroundTasks failed:", e);
   });
-  void kickResumeAnalysisDispatcherIfStalled().catch((e) => {
-    console.warn("[listBackgroundTasksForUser] kickResumeAnalysisDispatcherIfStalled failed:", e);
-  });
-  void kickResumeTailoringDispatcherIfStalled().catch((e) => {
-    console.warn("[listBackgroundTasksForUser] kickResumeTailoringDispatcherIfStalled failed:", e);
-  });
+
+  if (process.env.NODE_ENV === "production") {
+    await failStalledTaskiqDispatches();
+  } else {
+    void kickResumeAnalysisDispatcherIfStalled().catch((e) => {
+      console.warn("[listBackgroundTasksForUser] kickResumeAnalysisDispatcherIfStalled failed:", e);
+    });
+    void kickResumeTailoringDispatcherIfStalled().catch((e) => {
+      console.warn("[listBackgroundTasksForUser] kickResumeTailoringDispatcherIfStalled failed:", e);
+    });
+  }
 
   const tasks = await BackgroundTask.find({ userId })
     .sort({ createdAt: -1 })
@@ -823,18 +944,66 @@ export async function retryBackgroundTaskForUser(taskId: string, userId: string)
   await task.save();
 
   const safeTask = toSafeBackgroundTask(task);
-  await enqueueResumeAnalysisTask(safeTask.id);
+  if (safeTask.type === "resume_tailoring") {
+    await enqueueResumeTailoringTask(safeTask.id);
+  } else {
+    await enqueueResumeAnalysisTask(safeTask.id);
+  }
 
-  return { ok: true, task: safeTask };
+  const refreshedTask = await BackgroundTask.findOne({
+    _id: safeTask.id,
+    userId,
+  }).lean();
+
+  return {
+    ok: true,
+    task: refreshedTask ? toSafeBackgroundTask(refreshedTask) : safeTask,
+  };
 }
 
 export async function enqueueResumeAnalysisTask(taskId: string) {
   const bridgeUrl = process.env.TASKIQ_BRIDGE_URL?.trim();
+  const internalToken = process.env.TASK_INTERNAL_TOKEN?.trim();
+  const debugId = randomUUID();
+  const startedAt = Date.now();
 
   if (!bridgeUrl) {
-    enqueueLocalTaskProcessing(taskId);
-    return { mode: "local" as const };
+    if (process.env.NODE_ENV !== "production") {
+      enqueueLocalTaskProcessing(taskId);
+      return { mode: "local" as const, debugId };
+    }
+
+    const error = new Error(
+      "TASKIQ_BRIDGE_URL is not configured in the production environment.",
+    );
+    await failTaskiqDispatch(taskId, debugId, "", startedAt, error);
+    throw error;
   }
+
+  if (!internalToken) {
+    const error = new Error(
+      "TASK_INTERNAL_TOKEN is not configured in the production environment.",
+    );
+    await failTaskiqDispatch(taskId, debugId, bridgeUrl, startedAt, error);
+    throw error;
+  }
+
+  await recordTaskiqDispatch(
+    taskId,
+    {
+      debugId,
+      state: "contacting_bridge",
+      bridgeOrigin: getSafeBridgeOrigin(bridgeUrl),
+      startedAt: new Date(startedAt).toISOString(),
+    },
+    { label: "Contacting Taskiq bridge" },
+  );
+
+  console.info("[taskiq:dispatch] enqueue_started", {
+    taskId,
+    debugId,
+    bridgeOrigin: getSafeBridgeOrigin(bridgeUrl),
+  });
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TASKIQ_BRIDGE_TIMEOUT_MS);
@@ -844,24 +1013,67 @@ export async function enqueueResumeAnalysisTask(taskId: string) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "x-task-internal-token": internalToken,
       },
       body: JSON.stringify({
         taskId,
         appBaseUrl: getAppBaseUrl(),
-        internalToken: process.env.TASK_INTERNAL_TOKEN || "",
+        internalToken,
+        debugId,
       }),
       signal: controller.signal,
     });
 
+    const payload = (await response.json().catch(() => null)) as {
+      queued?: boolean;
+      taskiqId?: string | null;
+      detail?: unknown;
+    } | null;
+
     if (!response.ok) {
-      throw new Error(`Taskiq bridge returned ${response.status}.`);
+      const detail = payload?.detail
+        ? ` ${JSON.stringify(payload.detail).slice(0, 300)}`
+        : "";
+      throw new Error(`Taskiq bridge returned ${response.status}.${detail}`);
     }
 
-    return { mode: "taskiq" as const };
+    if (!payload?.queued) {
+      throw new Error("Taskiq bridge response did not confirm the enqueue.");
+    }
+
+    await recordTaskiqDispatch(
+      taskId,
+      {
+        debugId,
+        state: "accepted_by_bridge",
+        bridgeOrigin: getSafeBridgeOrigin(bridgeUrl),
+        taskiqId: payload.taskiqId ?? null,
+        durationMs: Date.now() - startedAt,
+      },
+      { label: "Task accepted by Taskiq bridge", tone: "success" },
+    );
+
+    console.info("[taskiq:dispatch] enqueue_completed", {
+      taskId,
+      debugId,
+      taskiqId: payload.taskiqId ?? null,
+      durationMs: Date.now() - startedAt,
+    });
+
+    return {
+      mode: "taskiq" as const,
+      debugId,
+      taskiqId: payload.taskiqId ?? null,
+    };
   } catch (error) {
-    logTaskiqFallback("resume", error);
-    enqueueLocalTaskProcessing(taskId);
-    return { mode: "local" as const };
+    if (process.env.NODE_ENV !== "production") {
+      logTaskiqFallback("resume", error);
+      enqueueLocalTaskProcessing(taskId);
+      return { mode: "local" as const, debugId };
+    }
+
+    await failTaskiqDispatch(taskId, debugId, bridgeUrl, startedAt, error);
+    throw error;
   } finally {
     clearTimeout(timer);
   }
@@ -1427,11 +1639,41 @@ export async function createResumeTailoringTask(input: {
 
 export async function enqueueResumeTailoringTask(taskId: string) {
   const bridgeUrl = process.env.TASKIQ_BRIDGE_URL?.trim();
+  const internalToken = process.env.TASK_INTERNAL_TOKEN?.trim();
+  const debugId = randomUUID();
+  const startedAt = Date.now();
 
   if (!bridgeUrl) {
-    enqueueLocalResumeTailoringProcessing(taskId);
-    return { mode: "local" as const };
+    if (process.env.NODE_ENV !== "production") {
+      enqueueLocalResumeTailoringProcessing(taskId);
+      return { mode: "local" as const, debugId };
+    }
+
+    const error = new Error(
+      "TASKIQ_BRIDGE_URL is not configured in the production environment.",
+    );
+    await failTaskiqDispatch(taskId, debugId, "", startedAt, error);
+    throw error;
   }
+
+  if (!internalToken) {
+    const error = new Error(
+      "TASK_INTERNAL_TOKEN is not configured in the production environment.",
+    );
+    await failTaskiqDispatch(taskId, debugId, bridgeUrl, startedAt, error);
+    throw error;
+  }
+
+  await recordTaskiqDispatch(
+    taskId,
+    {
+      debugId,
+      state: "contacting_bridge",
+      bridgeOrigin: getSafeBridgeOrigin(bridgeUrl),
+      startedAt: new Date(startedAt).toISOString(),
+    },
+    { label: "Contacting Taskiq bridge" },
+  );
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TASKIQ_BRIDGE_TIMEOUT_MS);
@@ -1439,24 +1681,62 @@ export async function enqueueResumeTailoringTask(taskId: string) {
   try {
     const response = await fetch(`${bridgeUrl.replace(/\/$/, "")}/enqueue/tailor`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-task-internal-token": internalToken,
+      },
       body: JSON.stringify({
         taskId,
         appBaseUrl: getAppBaseUrl(),
-        internalToken: process.env.TASK_INTERNAL_TOKEN || "",
+        internalToken,
+        debugId,
       }),
       signal: controller.signal,
     });
 
+    const payload = (await response.json().catch(() => null)) as {
+      queued?: boolean;
+      taskiqId?: string | null;
+      detail?: unknown;
+    } | null;
+
     if (!response.ok) {
-      throw new Error(`Taskiq bridge returned ${response.status}.`);
+      const detail = payload?.detail
+        ? ` ${JSON.stringify(payload.detail).slice(0, 300)}`
+        : "";
+      throw new Error(`Taskiq bridge returned ${response.status}.${detail}`);
     }
 
-    return { mode: "taskiq" as const };
+    if (!payload?.queued) {
+      throw new Error("Taskiq bridge response did not confirm the enqueue.");
+    }
+
+    await recordTaskiqDispatch(
+      taskId,
+      {
+        debugId,
+        state: "accepted_by_bridge",
+        bridgeOrigin: getSafeBridgeOrigin(bridgeUrl),
+        taskiqId: payload.taskiqId ?? null,
+        durationMs: Date.now() - startedAt,
+      },
+      { label: "Task accepted by Taskiq bridge", tone: "success" },
+    );
+
+    return {
+      mode: "taskiq" as const,
+      debugId,
+      taskiqId: payload.taskiqId ?? null,
+    };
   } catch (error) {
-    logTaskiqFallback("tailoring", error);
-    enqueueLocalResumeTailoringProcessing(taskId);
-    return { mode: "local" as const };
+    if (process.env.NODE_ENV !== "production") {
+      logTaskiqFallback("tailoring", error);
+      enqueueLocalResumeTailoringProcessing(taskId);
+      return { mode: "local" as const, debugId };
+    }
+
+    await failTaskiqDispatch(taskId, debugId, bridgeUrl, startedAt, error);
+    throw error;
   } finally {
     clearTimeout(timer);
   }

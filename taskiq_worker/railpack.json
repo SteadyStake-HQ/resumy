@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.railpack.com",
   "deploy": {
-    "startCommand": "taskiq worker broker:broker tasks --workers 1 --max-async-tasks 1"
+    "startCommand": "python run_service.py"
   }
 }

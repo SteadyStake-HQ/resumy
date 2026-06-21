@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import {
   createResumeTailoringTask,
   enqueueResumeTailoringTask,
+  getBackgroundTaskForUser,
 } from "@/lib/background-task-service";
 import {
   checkRateLimit,
@@ -116,20 +117,39 @@ export async function POST(request: Request) {
       clientTaskId,
     });
 
-    void enqueueResumeTailoringTask(task.id).catch((error) => {
-      console.error("Resume tailoring enqueue failed after task creation", {
-        taskId: task.id,
-        error,
-      });
-    });
+    try {
+      const dispatch = await enqueueResumeTailoringTask(task.id);
+      const dispatchedTask =
+        (await getBackgroundTaskForUser(task.id, session.user.id)) ?? task;
 
-    return NextResponse.json(
-      {
-        task,
-        initialStatus: task.status,
-      },
-      { status: 201 },
-    );
+      return NextResponse.json(
+        {
+          task: dispatchedTask,
+          initialStatus: dispatchedTask.status,
+          dispatch,
+        },
+        { status: 201 },
+      );
+    } catch (error) {
+      const failedTask = await getBackgroundTaskForUser(
+        task.id,
+        session.user.id,
+      );
+
+      console.error("[taskiq:tailor] enqueue_failed", {
+        taskId: task.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      return NextResponse.json(
+        {
+          error: "The background worker could not be reached.",
+          code: "taskiq_enqueue_failed",
+          task: failedTask,
+        },
+        { status: 502 },
+      );
+    }
   } catch (error) {
     console.error("Tailor resume error", error);
 

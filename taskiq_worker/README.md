@@ -32,10 +32,11 @@ Create a separate Railway service for the worker and set its root directory to:
 taskiq_worker
 ```
 
-Railpack will use `railpack.json` in this directory and start the worker with:
+Railpack will use `railpack.json` in this directory and start the HTTP bridge
+and Taskiq worker together:
 
 ```bash
-taskiq worker broker:broker tasks --workers 1 --max-async-tasks 1
+python run_service.py
 ```
 
 Set the worker service variables to match the app and Redis services:
@@ -43,5 +44,19 @@ Set the worker service variables to match the app and Redis services:
 ```text
 TASKIQ_REDIS_URL=...
 TASKIQ_QUEUE_NAME=resume_analysis
+TASK_INTERNAL_TOKEN=the-same-long-random-value-used-by-vercel
 TASK_INTERNAL_REQUEST_TIMEOUT_SECONDS=300
 ```
+
+Generate a public Railway domain for the service and set its health-check path
+to `/health`. A healthy response confirms that the bridge can reach Redis.
+
+Set these variables on the Vercel app:
+
+```text
+TASKIQ_BRIDGE_URL=https://your-worker-service.up.railway.app
+TASK_INTERNAL_TOKEN=the-same-long-random-value-used-by-railway
+APP_BASE_URL=https://your-app.vercel.app
+```
+
+Do not add `/enqueue/resume` to `TASKIQ_BRIDGE_URL`; the app adds that path.

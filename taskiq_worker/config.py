@@ -3,6 +3,7 @@ import os
 
 TASKIQ_REDIS_URL = os.getenv("TASKIQ_REDIS_URL", "redis://127.0.0.1:6379/0")
 TASKIQ_QUEUE_NAME = os.getenv("TASKIQ_QUEUE_NAME", "resume_analysis")
+TASK_INTERNAL_TOKEN = os.getenv("TASK_INTERNAL_TOKEN", "").strip()
 TASKIQ_RESULT_EXPIRE_SECONDS = int(
     os.getenv("TASKIQ_RESULT_EXPIRE_SECONDS", "3600"),
 )

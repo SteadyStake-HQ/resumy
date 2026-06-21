@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import {
   createResumeAnalysisTask,
   enqueueResumeAnalysisTask,
+  getBackgroundTaskForUser,
 } from "@/lib/background-task-service";
 import {
   readUploadClientTaskId,
@@ -40,11 +41,36 @@ export async function POST(request: Request) {
       clientTaskId,
     });
 
-    void enqueueResumeAnalysisTask(task.id).catch((error) => {
-      console.error("Resume analysis enqueue trigger failed", error);
-    });
+    try {
+      const dispatch = await enqueueResumeAnalysisTask(task.id);
+      const dispatchedTask =
+        (await getBackgroundTaskForUser(task.id, session.user.id)) ?? task;
 
-    return NextResponse.json({ task }, { status: 202 });
+      return NextResponse.json(
+        { task: dispatchedTask, dispatch },
+        { status: 202 },
+      );
+    } catch (error) {
+      const failedTask = await getBackgroundTaskForUser(
+        task.id,
+        session.user.id,
+      );
+
+      console.error("[taskiq:upload] enqueue_failed", {
+        taskId: task.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      return NextResponse.json(
+        {
+          error:
+            "The resume was uploaded, but the background worker could not be reached.",
+          code: "taskiq_enqueue_failed",
+          task: failedTask,
+        },
+        { status: 502 },
+      );
+    }
   } catch (error) {
     console.error("Resume upload queue error", error);
 

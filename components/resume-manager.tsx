@@ -571,7 +571,14 @@ export function ResumeManager({ initialResumes }: ResumeManagerProps) {
       "Upload failed.",
     );
 
-    if (!response.ok || !payload.task) {
+    if (!response.ok) {
+      if (payload.task) {
+        dispatchQueueTask(payload.task);
+      }
+      throw new Error(payload.error ?? `${file.name}: Upload failed.`);
+    }
+
+    if (!payload.task) {
       throw new Error(payload.error ?? `${file.name}: Upload failed.`);
     }
 
