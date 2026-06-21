@@ -10,6 +10,83 @@ type SignupRequestBody = {
   confirmPassword?: string;
 };
 
+function getErrorCode(error: unknown) {
+  if (error && typeof error === "object" && "code" in error) {
+    const code = (error as { code?: unknown }).code;
+    return typeof code === "string" ? code : undefined;
+  }
+
+  return undefined;
+}
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return typeof error === "string" ? error : "";
+}
+
+function getSignupErrorResponse(error: unknown) {
+  const code = getErrorCode(error);
+  const message = getErrorMessage(error);
+
+  if (message.includes("DATABASE_URL")) {
+    return {
+      status: 503,
+      body: {
+        error:
+          "Signup is unavailable because the database URL is not configured.",
+        code: "database_url_missing",
+      },
+    };
+  }
+
+  if (code === "P2021" || code === "42P01") {
+    return {
+      status: 503,
+      body: {
+        error:
+          "Signup is unavailable because the database schema has not been applied.",
+        code: "database_schema_missing",
+      },
+    };
+  }
+
+  if (code === "P2002" || code === "23505") {
+    return {
+      status: 409,
+      body: {
+        error: "An account with that email already exists.",
+        code: "email_exists",
+      },
+    };
+  }
+
+  if (
+    /ECONNREFUSED|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|Can't reach database|connection/i.test(
+      message,
+    )
+  ) {
+    return {
+      status: 503,
+      body: {
+        error:
+          "Signup is unavailable because the app cannot connect to the database.",
+        code: "database_unreachable",
+      },
+    };
+  }
+
+  return {
+    status: 500,
+    body: {
+      error: "Something went wrong while creating the account.",
+      code: "signup_failed",
+    },
+  };
+}
+
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as SignupRequestBody;
@@ -74,10 +151,8 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     console.error("Signup error", error);
+    const response = getSignupErrorResponse(error);
 
-    return NextResponse.json(
-      { error: "Something went wrong while creating the account." },
-      { status: 500 },
-    );
+    return NextResponse.json(response.body, { status: response.status });
   }
 }

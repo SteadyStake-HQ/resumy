@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "node scripts/dev-with-taskiq.mjs",
     "build": "next build --webpack",
+    "postinstall": "prisma generate",
     "start": "next start",
     "lint": "eslint",
     "prisma:generate": "prisma generate",
