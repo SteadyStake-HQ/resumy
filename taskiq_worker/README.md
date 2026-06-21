@@ -49,7 +49,7 @@ TASK_INTERNAL_REQUEST_TIMEOUT_SECONDS=300
 ```
 
 Generate a public Railway domain for the service and set its health-check path
-to `/health`. A healthy response confirms that the bridge can reach Redis.
+to `/health`. Use `/ready` to confirm that the running bridge can reach Redis.
 
 Set these variables on the Vercel app:
 

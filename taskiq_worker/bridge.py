@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from fastapi import FastAPI, Header, HTTPException
@@ -29,11 +30,21 @@ class ResumeEnqueueRequest(BaseModel):
 
 @app.get("/health")
 async def health():
+    return {
+        "ok": True,
+        "bridge": "running",
+        "queue": TASKIQ_QUEUE_NAME,
+    }
+
+
+@app.get("/ready")
+async def ready():
     client = from_url(TASKIQ_REDIS_URL)
     try:
-        await client.ping()
+        await asyncio.wait_for(client.ping(), timeout=5)
         return {
             "ok": True,
+            "bridge": "running",
             "redis": "connected",
             "queue": TASKIQ_QUEUE_NAME,
         }
