@@ -43,17 +43,50 @@ def start_worker() -> subprocess.Popen:
     )
 
 
-def redis_is_configured() -> bool:
+def redis_is_ready() -> bool:
     redis_url = os.getenv("TASKIQ_REDIS_URL", "").strip().lower()
     has_valid_scheme = redis_url.startswith(("redis://", "rediss://", "unix://"))
     is_local = "127.0.0.1" in redis_url or "localhost" in redis_url
-    return has_valid_scheme and not is_local
+
+    if not has_valid_scheme or is_local:
+        print(
+            "[taskiq-service] worker_not_started "
+            "reason=TASKIQ_REDIS_URL_missing_malformed_or_local",
+            file=sys.stderr,
+            flush=True,
+        )
+        return False
+
+    try:
+        from redis import Redis
+
+        client = Redis.from_url(
+            os.environ["TASKIQ_REDIS_URL"],
+            socket_connect_timeout=5,
+            socket_timeout=5,
+        )
+        try:
+            client.ping()
+        finally:
+            client.close()
+    except Exception as error:
+        print(
+            "[taskiq-service] worker_not_started "
+            f"reason=redis_preflight_failed error_type={type(error).__name__} "
+            f"message={str(error)[:500]}",
+            file=sys.stderr,
+            flush=True,
+        )
+        return False
+
+    print("[taskiq-service] redis_preflight=connected", flush=True)
+    return True
 
 
 def main() -> int:
     port = os.getenv("PORT", "8000")
     bridge = start_bridge(port)
-    worker = start_worker() if redis_is_configured() else None
+    worker = start_worker() if redis_is_ready() else None
     stopping = False
 
     print(
@@ -62,14 +95,6 @@ def main() -> int:
         f"worker_pid={worker.pid if worker else 'not_started'}",
         flush=True,
     )
-
-    if worker is None:
-        print(
-            "[taskiq-service] worker_not_started "
-            "reason=TASKIQ_REDIS_URL_missing_malformed_or_local",
-            file=sys.stderr,
-            flush=True,
-        )
 
     def stop_processes(signum: int, _frame=None) -> None:
         nonlocal stopping

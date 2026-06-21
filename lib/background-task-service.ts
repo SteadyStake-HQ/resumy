@@ -183,6 +183,24 @@ function getSafeBridgeOrigin(bridgeUrl: string) {
   }
 }
 
+function normalizeBridgeUrl(value: string | undefined) {
+  const bridgeUrl = value?.trim().replace(/\/$/, "");
+
+  if (!bridgeUrl) {
+    return "";
+  }
+
+  if (/^https?:\/\//i.test(bridgeUrl)) {
+    return bridgeUrl;
+  }
+
+  const protocol = /^(localhost|127\.0\.0\.1)(?::|\/|$)/i.test(bridgeUrl)
+    ? "http"
+    : "https";
+
+  return `${protocol}://${bridgeUrl}`;
+}
+
 async function recordTaskiqDispatch(
   taskId: string,
   dispatch: Record<string, unknown>,
@@ -962,7 +980,7 @@ export async function retryBackgroundTaskForUser(taskId: string, userId: string)
 }
 
 export async function enqueueResumeAnalysisTask(taskId: string) {
-  const bridgeUrl = process.env.TASKIQ_BRIDGE_URL?.trim();
+  const bridgeUrl = normalizeBridgeUrl(process.env.TASKIQ_BRIDGE_URL);
   const internalToken = process.env.TASK_INTERNAL_TOKEN?.trim();
   const debugId = randomUUID();
   const startedAt = Date.now();
@@ -1638,7 +1656,7 @@ export async function createResumeTailoringTask(input: {
 }
 
 export async function enqueueResumeTailoringTask(taskId: string) {
-  const bridgeUrl = process.env.TASKIQ_BRIDGE_URL?.trim();
+  const bridgeUrl = normalizeBridgeUrl(process.env.TASKIQ_BRIDGE_URL);
   const internalToken = process.env.TASK_INTERNAL_TOKEN?.trim();
   const debugId = randomUUID();
   const startedAt = Date.now();
