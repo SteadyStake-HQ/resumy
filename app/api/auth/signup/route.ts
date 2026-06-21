@@ -69,6 +69,17 @@ function getSignupErrorResponse(error: unknown) {
     };
   }
 
+  if (code === "ENOENT" && message.includes("query_compiler_bg.wasm")) {
+    return {
+      status: 503,
+      body: {
+        error:
+          "Signup is unavailable because a required Prisma runtime asset is missing.",
+        code: "prisma_runtime_asset_missing",
+      },
+    };
+  }
+
   if (code === "P2021" || code === "42P01") {
     return {
       status: 503,
