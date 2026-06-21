@@ -9,7 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "prisma:generate": "prisma generate",
-    "db:push": "tsx scripts/push-neon-schema.ts",
+    "db:push": "node scripts/push-neon-schema.mjs",
     "taskiq:setup": "node scripts/setup-taskiq.mjs",
     "seed:templates": "tsx scripts/seed-design-templates.ts",
     "seed:articles": "tsx scripts/seed-articles.ts"
