@@ -23,3 +23,25 @@ taskiq worker taskiq_worker.broker:broker taskiq_worker.tasks --workers 1 --max-
 ```
 
 The bridge receives enqueue requests from Next.js, while the Taskiq worker pulls jobs from Redis and calls back into the internal Next.js processing route.
+
+## Deploy on Railway
+
+Create a separate Railway service for the worker and set its root directory to:
+
+```text
+taskiq_worker
+```
+
+Railpack will use `railpack.json` in this directory and start the worker with:
+
+```bash
+taskiq worker broker:broker tasks --workers 1 --max-async-tasks 1
+```
+
+Set the worker service variables to match the app and Redis services:
+
+```text
+TASKIQ_REDIS_URL=...
+TASKIQ_QUEUE_NAME=resume_analysis
+TASK_INTERNAL_REQUEST_TIMEOUT_SECONDS=300
+```

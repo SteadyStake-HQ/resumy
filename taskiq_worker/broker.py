@@ -1,10 +1,17 @@
 from taskiq_redis import RedisAsyncResultBackend, RedisStreamBroker
 
-from taskiq_worker.config import (
-    TASKIQ_QUEUE_NAME,
-    TASKIQ_REDIS_URL,
-    TASKIQ_RESULT_EXPIRE_SECONDS,
-)
+try:
+    from taskiq_worker.config import (
+        TASKIQ_QUEUE_NAME,
+        TASKIQ_REDIS_URL,
+        TASKIQ_RESULT_EXPIRE_SECONDS,
+    )
+except ModuleNotFoundError:
+    from config import (
+        TASKIQ_QUEUE_NAME,
+        TASKIQ_REDIS_URL,
+        TASKIQ_RESULT_EXPIRE_SECONDS,
+    )
 
 
 result_backend = RedisAsyncResultBackend(

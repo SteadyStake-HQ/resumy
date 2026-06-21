@@ -1,7 +1,11 @@
 import httpx
 
-from taskiq_worker.broker import broker
-from taskiq_worker.config import TASK_INTERNAL_REQUEST_TIMEOUT_SECONDS
+try:
+    from taskiq_worker.broker import broker
+    from taskiq_worker.config import TASK_INTERNAL_REQUEST_TIMEOUT_SECONDS
+except ModuleNotFoundError:
+    from broker import broker
+    from config import TASK_INTERNAL_REQUEST_TIMEOUT_SECONDS
 
 
 @broker.task(task_name="resume_analysis.process_resume_task")
