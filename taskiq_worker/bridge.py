@@ -11,10 +11,8 @@ try:
         TASKIQ_REDIS_URL,
         TASK_INTERNAL_TOKEN,
     )
-    from taskiq_worker.tasks import process_resume_task
 except ModuleNotFoundError:
     from config import TASKIQ_QUEUE_NAME, TASKIQ_REDIS_URL, TASK_INTERNAL_TOKEN
-    from tasks import process_resume_task
 
 
 app = FastAPI(title="Resume Foundry Taskiq Bridge")
@@ -39,8 +37,9 @@ async def health():
 
 @app.get("/ready")
 async def ready():
-    client = from_url(TASKIQ_REDIS_URL)
+    client = None
     try:
+        client = from_url(TASKIQ_REDIS_URL)
         await asyncio.wait_for(client.ping(), timeout=5)
         return {
             "ok": True,
@@ -59,7 +58,8 @@ async def ready():
             },
         ) from error
     finally:
-        await client.aclose()
+        if client is not None:
+            await client.aclose()
 
 
 def validate_bridge_token(provided_token: str | None) -> None:
@@ -88,20 +88,33 @@ async def enqueue(payload: ResumeEnqueueRequest, route: str):
     )
 
     try:
+        try:
+            from taskiq_worker.tasks import process_resume_task
+        except ModuleNotFoundError:
+            from tasks import process_resume_task
+
         task = await process_resume_task.kiq(
             task_id,
             payload.appBaseUrl.strip(),
             payload.internalToken.strip(),
             debug_id,
         )
-    except Exception:
+    except Exception as error:
         logger.exception(
             "[taskiq:bridge] enqueue_failed route=%s debug_id=%s task_id=%s",
             route,
             debug_id,
             task_id,
         )
-        raise
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "queued": False,
+                "debugId": debug_id,
+                "errorType": type(error).__name__,
+                "message": str(error)[:500],
+            },
+        ) from error
 
     taskiq_id = getattr(task, "task_id", None)
     logger.info(

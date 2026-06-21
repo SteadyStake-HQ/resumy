@@ -45,7 +45,9 @@ def start_worker() -> subprocess.Popen:
 
 def redis_is_configured() -> bool:
     redis_url = os.getenv("TASKIQ_REDIS_URL", "").strip().lower()
-    return bool(redis_url) and "127.0.0.1" not in redis_url and "localhost" not in redis_url
+    has_valid_scheme = redis_url.startswith(("redis://", "rediss://", "unix://"))
+    is_local = "127.0.0.1" in redis_url or "localhost" in redis_url
+    return has_valid_scheme and not is_local
 
 
 def main() -> int:
@@ -64,7 +66,7 @@ def main() -> int:
     if worker is None:
         print(
             "[taskiq-service] worker_not_started "
-            "reason=TASKIQ_REDIS_URL_missing_or_local",
+            "reason=TASKIQ_REDIS_URL_missing_malformed_or_local",
             file=sys.stderr,
             flush=True,
         )
