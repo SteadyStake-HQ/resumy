@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.railpack.com",
   "deploy": {
-    "startCommand": "python run_service.py"
+    "startCommand": "python -u run_service.py"
   }
 }
