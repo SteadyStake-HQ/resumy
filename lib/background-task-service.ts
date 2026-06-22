@@ -226,6 +226,20 @@ async function recordTaskiqDispatch(
   });
 }
 
+async function recordResumeProcessingDebug(
+  taskId: string,
+  debugData: Record<string, unknown>,
+) {
+  await BackgroundTask.findByIdAndUpdate(taskId, {
+    $set: {
+      "debugData.resumeProcessing": {
+        ...debugData,
+        updatedAt: new Date().toISOString(),
+      },
+    },
+  });
+}
+
 async function failTaskiqDispatch(
   taskId: string,
   debugId: string,
@@ -1155,7 +1169,17 @@ export async function processResumeAnalysisTask(
   taskId: string,
   claimedProcessingToken?: string,
 ) {
+  const processingStartedAt = Date.now();
+  console.info("[resume-processing] started", {
+    taskId,
+    hasClaimedToken: Boolean(claimedProcessingToken),
+  });
+
   await connectToDatabase();
+  await recordResumeProcessingDebug(taskId, {
+    state: "database_connected",
+    elapsedMs: Date.now() - processingStartedAt,
+  });
 
   const processingToken = claimedProcessingToken || randomUUID();
   const task = claimedProcessingToken
@@ -1167,8 +1191,43 @@ export async function processResumeAnalysisTask(
     : await claimTaskForProcessing(taskId, processingToken);
 
   if (!task) {
+    const message =
+      "The claimed background task could not be reloaded for processing.";
+    console.error("[resume-processing] claimed_task_reload_failed", {
+      taskId,
+      elapsedMs: Date.now() - processingStartedAt,
+    });
+    await BackgroundTask.findByIdAndUpdate(taskId, {
+      $set: {
+        status: "failed",
+        stageKey: "failed",
+        stageLabel: "Task ownership could not be verified",
+        error: message,
+        completedAt: new Date(),
+        processingToken: null,
+        "debugData.resumeProcessing": {
+          state: "claimed_task_reload_failed",
+          elapsedMs: Date.now() - processingStartedAt,
+          updatedAt: new Date().toISOString(),
+        },
+      },
+      $push: {
+        events: {
+          label: message,
+          tone: "error",
+          createdAt: new Date(),
+        },
+      },
+    });
     return null;
   }
+
+  await recordResumeProcessingDebug(taskId, {
+    state: "task_loaded",
+    elapsedMs: Date.now() - processingStartedAt,
+    sourceFileBytes: task.sourceFile?.buffer?.length ?? 0,
+    sourceMimeType: task.sourceFile?.mimeType ?? null,
+  });
 
   if (!task.sourceFile?.buffer?.length) {
     task.status = "failed";
@@ -1192,6 +1251,12 @@ export async function processResumeAnalysisTask(
   try {
     await appendTaskEvent(taskId, processingToken, "Preparing your resume", "info");
 
+    await recordResumeProcessingDebug(taskId, {
+      state: "creating_file",
+      elapsedMs: Date.now() - processingStartedAt,
+      sourceFileBytes: task.sourceFile.buffer.length,
+    });
+
     const file = new File(
       [new Uint8Array(task.sourceFile.buffer)],
       task.fileName,
@@ -1199,11 +1264,22 @@ export async function processResumeAnalysisTask(
     );
 
     await updateTaskStage(taskId, processingToken, "extracting_text", "Reading resume text", 10);
+    await recordResumeProcessingDebug(taskId, {
+      state: "extracting_text",
+      elapsedMs: Date.now() - processingStartedAt,
+      fileName: task.fileName,
+      sourceFileBytes: task.sourceFile.buffer.length,
+    });
     const rawText = await withTimeout(
       extractResumeTextFromFile(file),
       RESUME_TEXT_EXTRACTION_TIMEOUT_MS,
       "Reading resume text timed out. Please try a simpler PDF/DOCX export or upload a text-based resume file.",
     );
+    await recordResumeProcessingDebug(taskId, {
+      state: "text_extracted",
+      elapsedMs: Date.now() - processingStartedAt,
+      extractedCharacters: rawText.length,
+    });
     await assertTaskCanContinue(taskId, processingToken);
 
     if (!rawText || rawText.length < 60) {

@@ -510,12 +510,17 @@ function getTaskiqDebug(task: SafeBackgroundTask | null) {
 
   const dispatch = debugData.taskiqDispatch;
   const callback = debugData.taskiqWorkerCallback;
+  const processing = debugData.resumeProcessing;
 
-  if (!dispatch && !callback) {
+  if (!dispatch && !callback && !processing) {
     return null;
   }
 
-  return { dispatch: dispatch ?? null, callback: callback ?? null };
+  return {
+    dispatch: dispatch ?? null,
+    callback: callback ?? null,
+    processing: processing ?? null,
+  };
 }
 
 function DebugJsonPanel({
@@ -1658,6 +1663,10 @@ function TaskDetailsModal({
                   <DebugJsonPanel
                     title="Worker Callback"
                     value={taskiqDebug.callback}
+                  />
+                  <DebugJsonPanel
+                    title="Resume Processing"
+                    value={taskiqDebug.processing}
                   />
                 </div>
               ) : null}
