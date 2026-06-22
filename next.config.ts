@@ -1,13 +1,19 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["@napi-rs/canvas", "pdf-parse"],
+  serverExternalPackages: [
+    "@napi-rs/canvas",
+    "@sparticuz/chromium",
+    "pdf-parse",
+    "puppeteer-core",
+  ],
   outputFileTracingIncludes: {
     "*": [
       "node_modules/.prisma/client/**/*",
       "node_modules/@napi-rs/canvas/**/*",
       "node_modules/@napi-rs/canvas-linux-x64-gnu/**/*",
       "node_modules/@napi-rs/canvas-linux-x64-musl/**/*",
+      "node_modules/@sparticuz/chromium/bin/**/*",
       "node_modules/pdf-parse/**/*",
       "node_modules/pdfjs-dist/**/*",
     ],

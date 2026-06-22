@@ -1,5 +1,3 @@
-import { promises as fs } from "fs";
-import path from "path";
 import { Types } from "@/lib/id";
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
@@ -10,14 +8,13 @@ import {
   generateEditorPdf,
   generateRawHtmlPdf,
 } from "@/lib/editor-document";
-import { toSafeGeneration } from "@/lib/generation";
 import { connectToDatabase } from "@/lib/db";
 import { normalizeResumeDocumentStyle } from "@/lib/resume-document-style";
 import Generation from "@/models/Generation";
-import JobDescription from "@/models/JobDescription";
 import Resume from "@/models/Resume";
 
 export const runtime = "nodejs";
+export const maxDuration = 300;
 
 type EditorExportBody = {
   format?: string;
@@ -85,14 +82,9 @@ export async function POST(
         (await buildEditorHtmlFromResume(generation.tailoredData));
   const renderHtml = submittedHtml ?? savedEditorHtml;
   const documentStyle = normalizeResumeDocumentStyle(body?.documentStyle);
-  const [sourceResume, jobDescription] = await Promise.all([
-    Resume.findById(generation.sourceResumeId).select("fileName").lean(),
-    generation.jobDescriptionId
-      ? JobDescription.findById(generation.jobDescriptionId)
-          .select("title company")
-          .lean()
-      : Promise.resolve(null),
-  ]);
+  const sourceResume = await Resume.findById(generation.sourceResumeId)
+    .select("fileName")
+    .lean();
 
   let outputBuffer: Uint8Array;
   try {
@@ -117,12 +109,6 @@ export async function POST(
     );
   }
 
-  const outputDirectory = path.join(
-    process.cwd(),
-    "public",
-    "generated",
-    session.user.id,
-  );
   const fileName = [
     generation._id.toString(),
     slugify(sourceResume?.fileName ?? "resume"),
@@ -132,21 +118,12 @@ export async function POST(
     .filter(Boolean)
     .join("-");
   const outputFileName = `${fileName}.${format}`;
-  const outputPath = path.join(outputDirectory, outputFileName);
 
-  await fs.mkdir(outputDirectory, { recursive: true });
-  await fs.writeFile(outputPath, outputBuffer);
-
-  const outputUrl = `/generated/${session.user.id}/${outputFileName}`;
-  const updatedGeneration = await Generation.findByIdAndUpdate(
+  await Generation.findByIdAndUpdate(
     generation._id,
     {
       editorHtml: savedEditorHtml,
       editorDocumentStyle: documentStyle,
-      generatedFiles: {
-        pdfUrl: format === "pdf" ? outputUrl : generation.generatedFiles?.pdfUrl ?? null,
-        docxUrl: format === "docx" ? outputUrl : generation.generatedFiles?.docxUrl ?? null,
-      },
     },
     {
       returnDocument: "after",
@@ -154,21 +131,16 @@ export async function POST(
     },
   ).lean();
 
-  return NextResponse.json({
-    url: outputUrl,
-    generation: updatedGeneration
-      ? toSafeGeneration(updatedGeneration, {
-          sourceResume: sourceResume
-            ? { id: sourceResume._id.toString(), fileName: sourceResume.fileName }
-            : null,
-          jobDescription: jobDescription
-            ? {
-                id: jobDescription._id.toString(),
-                title: jobDescription.title ?? "",
-                company: jobDescription.company ?? "",
-              }
-            : null,
-        })
-      : null,
+  const responseBody = Uint8Array.from(outputBuffer).buffer;
+  return new NextResponse(responseBody, {
+    headers: {
+      "Cache-Control": "private, no-store",
+      "Content-Disposition": `attachment; filename="${outputFileName}"`,
+      "Content-Length": String(outputBuffer.byteLength),
+      "Content-Type":
+        format === "pdf"
+          ? "application/pdf"
+          : "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    },
   });
 }

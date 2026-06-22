@@ -21,6 +21,7 @@ import {
   type ResumeTemplateId,
 } from "@/components/resume-templates";
 import { readApiResponse } from "@/lib/client-api";
+import { downloadFileResponse } from "@/lib/client-download";
 import { buildClientEditorHtmlFromResume } from "@/lib/client-editor-html";
 import {
   buildAutoPaginatedEditorHtml,
@@ -56,10 +57,6 @@ type SaveResponse = {
   generation?: SafeGeneration;
 };
 
-type ExportResponse = SaveResponse & {
-  url?: string;
-};
-
 // ─── Palette ──────────────────────────────────────────────────────────────────
 const THEME = {
   ink: "#1f1914",
@@ -81,16 +78,6 @@ function clampZoom(value: number) {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-function triggerDownload(url: string, fileName: string) {
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  link.target = "_blank";
-  document.body.append(link);
-  link.click();
-  link.remove();
-}
-
 function splitEditorSections(html: string) {
   const sectionPattern =
     /<section data-tailor-section="[^"]+">[\s\S]*?<\/section>/g;
@@ -942,24 +929,15 @@ export function TailorDocxEditor({
           }),
         },
       );
-      const payload = await readApiResponse<ExportResponse>(
+      await downloadFileResponse(
         response,
+        `tailored-resume-${generation.id}.${format}`,
         "We couldn't export the edited resume.",
       );
-
-      if (!response.ok || !payload.url) {
-        throw new Error(
-          payload.error ?? "We couldn't export the edited resume.",
-        );
-      }
 
       setHtml(nextHtml);
       setIsDirty(false);
       setStatus("Export ready");
-      triggerDownload(
-        payload.url,
-        `tailored-resume-${generation.id}.${format}`,
-      );
     } catch (error) {
       setStatus("Export failed");
       showErrorToast(

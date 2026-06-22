@@ -9,9 +9,7 @@ import {
   TextRun,
   WidthType,
 } from "docx";
-import { existsSync } from "node:fs";
-import { join } from "node:path";
-import puppeteer from "puppeteer";
+import { getChromiumLaunchOptions, puppeteer } from "@/lib/chromium";
 import {
   DEFAULT_RESUME_DOCUMENT_STYLE,
   RESUME_PAGE_SIZES,
@@ -107,59 +105,6 @@ type EditorDocxBlock = {
 };
 
 type EditorDocxElement = EditorDocxBlock | { type: "skillsTable"; groups: ResumeSkillGroup[] };
-
-function getChromiumLaunchEnv() {
-  if (process.platform === "win32") {
-    return process.env;
-  }
-
-  // Optional bundled library path for environments without system Chrome libs
-  const localChromeLibraryPath = join(
-    process.cwd(),
-    ".local",
-    "chrome-libs",
-    "extracted",
-    "usr",
-    "lib",
-    "x86_64-linux-gnu",
-  );
-
-  if (!existsSync(localChromeLibraryPath)) {
-    return process.env;
-  }
-
-  return {
-    ...process.env,
-    LD_LIBRARY_PATH: [
-      localChromeLibraryPath,
-      process.env.LD_LIBRARY_PATH,
-    ]
-      .filter(Boolean)
-      .join(":"),
-  };
-}
-
-/** Common Puppeteer launch options that work on Linux dev machines and CI */
-function getChromiumLaunchOptions(): Parameters<typeof puppeteer.launch>[0] {
-  const executablePath =
-    process.env.PUPPETEER_EXECUTABLE_PATH ||
-    process.env.CHROME_BIN ||
-    undefined;
-
-  return {
-    headless: true,
-    executablePath,          // undefined = use Puppeteer's bundled Chrome
-    env: getChromiumLaunchEnv(),
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",   // prevents crashes in low-/tmp environments
-      "--disable-gpu",             // not needed for headless PDF rendering
-      "--no-first-run",
-      "--no-zygote",
-    ],
-  };
-}
 
 function extractSkillsSectionHtml(html: string) {
   return html.match(
@@ -723,7 +668,7 @@ export function wrapEditorHtmlDocument(
 export async function generateRawHtmlPdf(fullHtml: string) {
   let browser: Awaited<ReturnType<typeof puppeteer.launch>> | null = null;
   try {
-    browser = await puppeteer.launch(getChromiumLaunchOptions());
+    browser = await puppeteer.launch(await getChromiumLaunchOptions());
     const page = await browser.newPage();
     await page.setContent(fullHtml, { waitUntil: "networkidle0" });
     // Use the @page CSS rule from the template for page dimensions.
@@ -752,7 +697,7 @@ export async function generateEditorPdf(
   let browser: Awaited<ReturnType<typeof puppeteer.launch>> | null = null;
 
   try {
-    browser = await puppeteer.launch(getChromiumLaunchOptions());
+    browser = await puppeteer.launch(await getChromiumLaunchOptions());
     const page = await browser.newPage();
     await page.setContent(wrapEditorHtmlDocument(html, style), {
       waitUntil: "networkidle0",

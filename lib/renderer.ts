@@ -1,6 +1,6 @@
 import { Document, Packer, Paragraph, TextRun } from "docx";
 import Handlebars from "handlebars/dist/cjs/handlebars";
-import puppeteer from "puppeteer";
+import { getChromiumLaunchOptions, puppeteer } from "@/lib/chromium";
 import { findDesignTemplate, loadTemplateAssetBundle } from "@/lib/templates";
 import {
   normalizeResumeCustomization,
@@ -484,10 +484,7 @@ export async function renderResumeHtml(
 }
 
 async function renderPdfFromHtml(html: string) {
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
-  });
+  const browser = await puppeteer.launch(await getChromiumLaunchOptions());
 
   try {
     const page = await browser.newPage();

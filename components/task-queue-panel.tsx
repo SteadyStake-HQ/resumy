@@ -501,28 +501,6 @@ function getTailoringPipelineDebug(task: SafeBackgroundTask | null) {
     : null;
 }
 
-function getTaskiqDebug(task: SafeBackgroundTask | null) {
-  const debugData = task?.debugData;
-
-  if (!debugData || typeof debugData !== "object" || Array.isArray(debugData)) {
-    return null;
-  }
-
-  const dispatch = debugData.taskiqDispatch;
-  const callback = debugData.taskiqWorkerCallback;
-  const processing = debugData.resumeProcessing;
-
-  if (!dispatch && !callback && !processing) {
-    return null;
-  }
-
-  return {
-    dispatch: dispatch ?? null,
-    callback: callback ?? null,
-    processing: processing ?? null,
-  };
-}
-
 function DebugJsonPanel({
   title,
   subtitle,
@@ -1293,7 +1271,6 @@ function TaskDetailsModal({
 
   const theme = getStatusTheme(task.status);
   const tailoringDebug = getTailoringPipelineDebug(task);
-  const taskiqDebug = getTaskiqDebug(task);
 
   return (
     <Dialog open={Boolean(task)} onClose={onClose} className="relative z-[70]">
@@ -1634,40 +1611,6 @@ function TaskDetailsModal({
                   }}
                 >
                   ⚠ {task.error}
-                </div>
-              ) : null}
-
-              {taskiqDebug ? (
-                <div
-                  style={{
-                    display: "grid",
-                    gap: 10,
-                    marginBottom: 16,
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 900,
-                      letterSpacing: 1.6,
-                      textTransform: "uppercase",
-                      color: KAWAII.accent,
-                    }}
-                  >
-                    Taskiq Debug
-                  </div>
-                  <DebugJsonPanel
-                    title="Bridge Dispatch"
-                    value={taskiqDebug.dispatch}
-                  />
-                  <DebugJsonPanel
-                    title="Worker Callback"
-                    value={taskiqDebug.callback}
-                  />
-                  <DebugJsonPanel
-                    title="Resume Processing"
-                    value={taskiqDebug.processing}
-                  />
                 </div>
               ) : null}
 
@@ -2193,12 +2136,27 @@ function FullPanel({
                 cursor: "pointer",
                 display: "grid",
                 height: 22,
+                lineHeight: 1,
+                padding: 0,
                 placeItems: "center",
                 width: 22,
                 flexShrink: 0,
               }}
             >
-              ×
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 10 10"
+                fill="none"
+                aria-hidden="true"
+              >
+                <path
+                  d="M2 2 L8 8 M8 2 L2 8"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                />
+              </svg>
             </button>
           </label>
         ) : null}
@@ -2582,7 +2540,7 @@ function FullPanel({
               />
             </svg>
           }
-          label="Retry"
+          label="Refetch"
           onClick={onManualReload}
           disabled={isManualReloading || isLoading}
         />

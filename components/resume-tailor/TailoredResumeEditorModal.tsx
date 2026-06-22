@@ -23,6 +23,7 @@ import {
 import type { SafeBackgroundTask } from "@/lib/background-task";
 import type { SafeGeneration } from "@/lib/generation";
 import { readApiResponse } from "@/lib/client-api";
+import { downloadFileResponse } from "@/lib/client-download";
 import { buildClientEditorHtmlFromResume } from "@/lib/client-editor-html";
 import {
   buildAutoPaginatedEditorHtml,
@@ -45,10 +46,6 @@ import { useToast } from "@/components/ui/toast-provider";
 type SaveResponse = {
   error?: string;
   generation?: SafeGeneration;
-};
-
-type ExportResponse = SaveResponse & {
-  url?: string;
 };
 
 export type StreamedResumeSection = {
@@ -111,16 +108,6 @@ const TB = {
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-function triggerDownload(url: string, fileName: string) {
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  link.target = "_blank";
-  document.body.append(link);
-  link.click();
-  link.remove();
-}
-
 function getDownloadName(generation: SafeGeneration | null, format: "pdf" | "docx") {
   const candidate = generation?.tailoredData.personalInfo.name || "Candidate";
   const role = generation?.jobDescription?.company || generation?.jobDescription?.title || "Role";
@@ -846,20 +833,13 @@ export function TailoredResumeEditorModal({
             rawHtmlDocument: isTemplatePdf,
           }),
         });
-        const payload = await readApiResponse<ExportResponse>(
+        await downloadFileResponse(
           response,
+          getDownloadName(generation, format),
           "We couldn't export the edited resume.",
         );
 
-        if (!response.ok || !payload.url) {
-          throw new Error(payload.error ?? "We couldn't export the edited resume.");
-        }
-
         onEditorHtmlChange(nextHtml);
-        if (payload.generation) {
-          onGenerationSaved(payload.generation);
-        }
-        triggerDownload(payload.url, getDownloadName(payload.generation ?? generation, format));
       } catch (exportError) {
         showErrorToast(
           exportError instanceof Error ? exportError.message : "We couldn't export the edited resume.",
@@ -869,7 +849,7 @@ export function TailoredResumeEditorModal({
         setExportingFormat(null);
       }
     },
-    [documentStyle, generation, onEditorHtmlChange, onGenerationSaved, selectedTemplateId, showErrorToast],
+    [documentStyle, generation, onEditorHtmlChange, selectedTemplateId, showErrorToast],
   );
 
   const statusText =
