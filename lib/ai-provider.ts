@@ -1,4 +1,4 @@
-export const AI_PROVIDERS = ["gemini", "openai", "huggingface"] as const;
+export const AI_PROVIDERS = ["gemini", "openai", "huggingface", "anthropic"] as const;
 
 export type AIProvider = (typeof AI_PROVIDERS)[number];
 
@@ -19,6 +19,11 @@ export const AI_PROVIDER_OPTIONS = [
     value: "huggingface",
     label: "Hugging Face",
     description: "Use a Hugging Face router model for text-based resume parsing and analysis.",
+  },
+  {
+    value: "anthropic",
+    label: "Anthropic Claude",
+    description: "Streaming resume parsing and analysis with Claude (Opus 4.8 by default).",
   },
 ] as const satisfies ReadonlyArray<{
   value: AIProvider;

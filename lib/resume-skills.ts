@@ -1,5 +1,3 @@
-import { isTechnicalSkill } from "@/lib/technical-skills";
-
 export type GroupedResumeSkills = {
   label: string;
   skills: string[];
@@ -74,7 +72,7 @@ function appendSkill(group: GroupedResumeSkills, skill: string) {
   }
 }
 
-export function groupResumeSkills(skills: string[], limitPerGroup = 18) {
+export function groupResumeSkills(skills: string[], limitPerGroup = 40) {
   const explicitGroups: GroupedResumeSkills[] = [];
   const inferredGroups = SKILL_GROUPS.map((group) => ({
     label: group.label,
@@ -90,7 +88,10 @@ export function groupResumeSkills(skills: string[], limitPerGroup = 18) {
   for (const rawSkill of skills) {
     const { group, skill } = stripSkillGroupPrefix(rawSkill);
 
-    if (!skill || !isTechnicalSkill(skill)) continue;
+    // STRICT COPY: keep every skill the resume listed. Do not drop items that
+    // fall outside a hardcoded technical allowlist — that caused real skills to
+    // silently disappear from the parsed/displayed resume.
+    if (!skill) continue;
 
     if (group) {
       let target = explicitGroups.find(

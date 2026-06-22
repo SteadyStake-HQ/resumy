@@ -15,6 +15,7 @@
     "seed:articles": "tsx scripts/seed-articles.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.105.0",
     "@ckeditor/ckeditor5-react": "^11.1.2",
     "@google/generative-ai": "^0.24.1",
     "@headlessui/react": "^2.2.9",
@@ -30,6 +31,7 @@
     "encoding": "^0.1.13",
     "handlebars": "^4.7.8",
     "jsonrepair": "^3.14.0",
+    "langsmith": "^0.7.10",
     "mammoth": "^1.12.0",
     "next": "16.1.6",
     "next-auth": "^4.24.13",

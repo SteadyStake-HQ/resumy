@@ -5,7 +5,6 @@ import {
   normalizePhoneValue,
 } from "@/lib/contact-info";
 import { formatResumeLocation } from "@/lib/location";
-import { sanitizeTechnicalSkills } from "@/lib/technical-skills";
 
 export type ResumeProfileLink = ExtractedProfileLink;
 
@@ -1114,10 +1113,13 @@ export function normalizeParsedResumeData(value: unknown): ParsedResumeData {
       links: normalizeProfileLinks(personalInfo.links),
     },
     summary: normalizedSummary,
-    skills: sanitizeTechnicalSkills(
-      normalizeSkills(record.skills, 200).filter(
-        (s) => s.toLowerCase() !== "skills" && s.toLowerCase() !== "skill",
-      ),
+    // STRICT COPY: preserve every parsed skill and its exact category label.
+    // normalizeSkills already de-dupes identical entries; we deliberately do NOT
+    // run the technical-allowlist sanitizer here (that belongs to job tailoring),
+    // because it drops unrecognized skills, renames categories, and re-buckets
+    // items into groups they were never listed under.
+    skills: normalizeSkills(record.skills, 200).filter(
+      (s) => s.toLowerCase() !== "skills" && s.toLowerCase() !== "skill",
     ),
     experience: Array.isArray(record.experience)
       ? expandEmbeddedExperienceEntries(

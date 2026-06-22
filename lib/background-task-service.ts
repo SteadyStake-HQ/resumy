@@ -3,7 +3,7 @@ import { Types } from "@/lib/id";
 import {
   analyzeJobDescriptionWithAI,
   analyzeResumeWithAI,
-  parseResumeWithAI,
+  extractResumeSequentially,
   tailorResume,
   tailorResumeFallback,
   validateTailoredResumeQuality,
@@ -71,24 +71,6 @@ function buildOriginalResumeTailoringContext(resume: {
     rawText: rawText.slice(0, 24000),
     rawTextTruncated: rawText.length > 24000,
   };
-}
-
-function createAIOnlyResumeExtractionMeta() {
-  const extractionMeta = createEmptyResumeExtractionMeta();
-  const updatedAt = new Date().toISOString();
-
-  extractionMeta.rawTextAvailable = true;
-
-  for (const section of RESUME_SECTION_KEYS) {
-    extractionMeta.sections[section] = {
-      source: "ai",
-      confidence: 100,
-      updatedAt,
-      issues: [],
-    };
-  }
-
-  return extractionMeta;
 }
 
 function createTimeoutError(message: string) {
@@ -1403,35 +1385,20 @@ export async function processResumeAnalysisTask(
     );
 
     try {
-      parsedData = await withTimeout(
-        parseResumeWithAI(
+      // Step-by-step extraction: personalInfo → summary → skills → experience →
+      // education, each as its own provider call. For OpenAI/Anthropic these calls
+      // stream and aggregate token deltas, lowering latency per section.
+      const sequential = await withTimeout(
+        extractResumeSequentially(
           rawText,
           preferredAI,
           { geminiRouterIndex, huggingFaceRouterIndex },
-          {
-            onRetry: () => {
-              // Fire-and-forget — surface the retry in the task timeline so
-              // users see movement instead of a frozen bar during the second call.
-              void updateTaskStage(
-                taskId,
-                processingToken,
-                "extraction_retry",
-                "Retrying extraction",
-                64,
-              ).catch(() => {});
-              void appendTaskEvent(
-                taskId,
-                processingToken,
-                "AI response was incomplete — retrying extraction",
-                "info",
-              ).catch(() => {});
-            },
-          },
         ),
         getResumeExtractionTimeoutMs(preferredAI),
         `${preferredAI} resume extraction timed out.`,
       );
-      extractionMeta = createAIOnlyResumeExtractionMeta();
+      parsedData = sequential.parsedData;
+      extractionMeta = sequential.extractionMeta;
 
       const parseConfidence = assessResumeParseConfidence(parsedData);
 

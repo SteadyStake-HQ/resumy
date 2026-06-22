@@ -1,4 +1,6 @@
 import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
+import { wrapOpenAI, wrapSDK } from "langsmith/wrappers";
 import { jsonrepair } from "jsonrepair";
 import {
   type ResponseSchema,
@@ -68,6 +70,9 @@ import {
 } from "@/lib/technical-skills";
 
 const OPENAI_MODEL = "gpt-5.4";
+// Anthropic extraction model. Defaults to the latest Opus; override with ANTHROPIC_MODEL.
+const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL?.trim() || "claude-opus-4-8";
+const ANTHROPIC_MAX_ATTEMPTS = 2;
 const SECTION_AI_TIMEOUT_MS = 45_000;
 const AI_PROVIDER_REQUEST_TIMEOUT_MS = 120_000;
 const HUGGINGFACE_CONTEXT_WINDOW_TOKENS = 16384;
@@ -123,6 +128,10 @@ type OpenAICallOptions = {
     format?: OpenAIResponseFormat;
     verbosity?: "low" | "medium" | "high";
   };
+  // Stream the Responses API and aggregate token deltas. Lowers time-to-first-token
+  // and avoids HTTP timeouts on large structured outputs, which speeds up the
+  // step-by-step section extraction.
+  stream?: boolean;
 };
 
 type HuggingFaceCallOptions = Pick<
@@ -1206,6 +1215,12 @@ const analyzedJobDescriptionJsonSchema = {
   ],
 } as const satisfies Record<string, unknown>;
 
+// LangSmith observability: wrapOpenAI / wrapSDK trace every request when
+// LANGSMITH_TRACING=true and LANGSMITH_API_KEY are set, and are transparent
+// no-ops otherwise. Clients are wrapped once and reused.
+let openAIClient: OpenAI | null = null;
+let anthropicClient: Anthropic | null = null;
+
 function getOpenAIClient() {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
 
@@ -1213,7 +1228,29 @@ function getOpenAIClient() {
     throw new Error("OPENAI_API_KEY is not set.");
   }
 
-  return new OpenAI({ apiKey, timeout: AI_PROVIDER_REQUEST_TIMEOUT_MS });
+  if (!openAIClient) {
+    openAIClient = wrapOpenAI(
+      new OpenAI({ apiKey, timeout: AI_PROVIDER_REQUEST_TIMEOUT_MS }),
+    );
+  }
+
+  return openAIClient;
+}
+
+function getAnthropicClient() {
+  const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
+
+  if (!apiKey) {
+    throw new Error("ANTHROPIC_API_KEY is not set.");
+  }
+
+  if (!anthropicClient) {
+    anthropicClient = wrapSDK(
+      new Anthropic({ apiKey, timeout: AI_PROVIDER_REQUEST_TIMEOUT_MS }),
+    );
+  }
+
+  return anthropicClient;
 }
 
 function clipResumeText(rawText: string) {
@@ -1727,18 +1764,27 @@ export async function callOpenAI(
   return withRetry(
     async () => {
       const client = getOpenAIClient();
-      const response = await withTimeout(
-        client.responses.create({
-          model: OPENAI_MODEL,
-          input: prompt,
-          max_output_tokens: options.maxOutputTokens ?? RESUME_PARSE_OUTPUT_TOKENS,
-          temperature: options.temperature ?? 0.2,
-          text: options.text,
-        }),
-        AI_PROVIDER_REQUEST_TIMEOUT_MS,
-        "OpenAI request timed out.",
-      );
-      const responseText = response.output_text?.trim();
+      const requestParams = {
+        model: OPENAI_MODEL,
+        input: prompt,
+        max_output_tokens: options.maxOutputTokens ?? RESUME_PARSE_OUTPUT_TOKENS,
+        temperature: options.temperature ?? 0.2,
+        text: options.text,
+      } as const;
+
+      const responseText = options.stream
+        ? await withTimeout(
+            streamOpenAIResponseText(client, requestParams),
+            AI_PROVIDER_REQUEST_TIMEOUT_MS,
+            "OpenAI request timed out.",
+          )
+        : (
+            await withTimeout(
+              client.responses.create(requestParams),
+              AI_PROVIDER_REQUEST_TIMEOUT_MS,
+              "OpenAI request timed out.",
+            )
+          ).output_text?.trim();
 
       if (!responseText) {
         throw new Error("OpenAI did not return any text.");
@@ -1751,6 +1797,111 @@ export async function callOpenAI(
       errorMessage: "OpenAI request failed.",
     },
   );
+}
+
+/**
+ * Streams the OpenAI Responses API, aggregating output_text deltas into the full
+ * response. Small token chunks are accumulated as they arrive so a slow or large
+ * structured output never blocks on a single buffered round-trip.
+ */
+async function streamOpenAIResponseText(
+  client: OpenAI,
+  params: Parameters<OpenAI["responses"]["stream"]>[0],
+) {
+  const streamHandle = client.responses.stream(params);
+  let aggregated = "";
+
+  for await (const event of streamHandle) {
+    if (event.type === "response.output_text.delta") {
+      aggregated += event.delta ?? "";
+    }
+  }
+
+  if (!aggregated) {
+    const finalResponse = await streamHandle.finalResponse();
+    aggregated = finalResponse.output_text ?? "";
+  }
+
+  return aggregated.trim();
+}
+
+/**
+ * Sends a prompt through the Anthropic Messages API and returns the aggregated
+ * text output. Always streams (per Anthropic guidance for large max_tokens) and
+ * accumulates text deltas, which keeps latency low for step-by-step extraction.
+ */
+export async function callAnthropic(
+  prompt: string,
+  options: { system?: string; maxOutputTokens?: number } = {},
+) {
+  return withRetry(
+    async () => {
+      const client = getAnthropicClient();
+      const responseText = await withTimeout(
+        streamAnthropicMessageText(client, prompt, options),
+        AI_PROVIDER_REQUEST_TIMEOUT_MS,
+        "Anthropic request timed out.",
+      );
+
+      if (!responseText) {
+        throw new Error("Anthropic did not return any text.");
+      }
+
+      return responseText;
+    },
+    {
+      attempts: ANTHROPIC_MAX_ATTEMPTS,
+      errorMessage: "Anthropic request failed.",
+    },
+  );
+}
+
+async function streamAnthropicMessageText(
+  client: Anthropic,
+  prompt: string,
+  options: { system?: string; maxOutputTokens?: number },
+) {
+  const streamHandle = client.messages.stream({
+    model: ANTHROPIC_MODEL,
+    max_tokens: options.maxOutputTokens ?? RESUME_PARSE_OUTPUT_TOKENS,
+    ...(options.system ? { system: options.system } : {}),
+    messages: [{ role: "user", content: prompt }],
+  });
+
+  let aggregated = "";
+
+  for await (const event of streamHandle) {
+    if (
+      event.type === "content_block_delta" &&
+      event.delta.type === "text_delta"
+    ) {
+      aggregated += event.delta.text;
+    }
+  }
+
+  if (!aggregated) {
+    const finalMessage = await streamHandle.finalMessage();
+    aggregated = finalMessage.content
+      .filter((block): block is Anthropic.TextBlock => block.type === "text")
+      .map((block) => block.text)
+      .join("");
+  }
+
+  return aggregated.trim();
+}
+
+/**
+ * Requests JSON from Anthropic. The extraction prompts already instruct strict
+ * JSON output ("first char {, last char }"), so the streamed text is parsed with
+ * the shared tolerant JSON extractor (jsonrepair-backed) rather than a
+ * provider-specific schema enforcer.
+ */
+export async function callAnthropicJson<T>(
+  prompt: string,
+  maxOutputTokens = RESUME_PARSE_OUTPUT_TOKENS,
+) {
+  const responseText = await callAnthropic(prompt, { maxOutputTokens });
+  return extractJsonFromText<T>(responseText);
 }
 
 export async function callHuggingFace(
@@ -1802,6 +1953,7 @@ export async function callOpenAIJson<T>(
       format: createOpenAIJsonFormat(formatName, schema),
       verbosity: "low",
     },
+    stream: true,
   });
 
   return extractJsonFromText<T>(responseText);
@@ -2378,6 +2530,11 @@ export async function extractResumeSectionWithAI(
           schema.formatName,
           RESUME_PARSE_OUTPUT_TOKENS,
         )
+      : provider === "anthropic"
+      ? await callAnthropicJson<Record<string, unknown>>(
+          prompt,
+          RESUME_PARSE_OUTPUT_TOKENS,
+        )
       : provider === "huggingface"
         ? await callHuggingFaceJson<Record<string, unknown>>(
             prompt,
@@ -2655,6 +2812,11 @@ export async function parseResumeWithAI(
             "parsed_resume",
             RESUME_PARSE_OUTPUT_TOKENS,
           )
+        : provider === "anthropic"
+        ? await callAnthropicJson<ParsedResumeData>(
+            prompt,
+            RESUME_PARSE_OUTPUT_TOKENS,
+          )
         : provider === "huggingface"
           ? await callHuggingFaceJson<ParsedResumeData>(
               prompt,
@@ -2731,6 +2893,11 @@ export async function analyzeResumeWithAI(
           prompt,
           analysisReportJsonSchema,
           "resume_analysis_report",
+          RESUME_ANALYSIS_OUTPUT_TOKENS,
+        )
+      : provider === "anthropic"
+      ? await callAnthropicJson<ResumeAnalysisReport>(
+          prompt,
           RESUME_ANALYSIS_OUTPUT_TOKENS,
         )
       : provider === "huggingface"
@@ -3710,6 +3877,8 @@ export async function analyzeJobDescriptionWithAI(
             6000,
             { temperature: 0.15 },
           )
+        : provider === "anthropic"
+        ? await callAnthropicJson<AnalyzedJobDescription>(prompt, 6000)
         : provider === "huggingface"
           ? await callHuggingFaceJson<AnalyzedJobDescription>(
               prompt,
@@ -3781,6 +3950,11 @@ export async function tailorResume(
           "tailored_resume",
           TAILORED_RESUME_OUTPUT_TOKENS,
           { temperature: TAILORING_TEMPERATURE },
+        )
+      : provider === "anthropic"
+      ? await callAnthropicJson<TailoredResumeOutput>(
+          prompt,
+          TAILORED_RESUME_OUTPUT_TOKENS,
         )
       : await callGeminiJson<TailoredResumeOutput>(
             prompt,
@@ -3868,7 +4042,10 @@ export async function generateCoverLetter(
           text: {
             verbosity: "medium",
           },
+          stream: true,
         })
+      : provider === "anthropic"
+      ? await callAnthropic(prompt, { maxOutputTokens: 1200 })
       : provider === "huggingface"
         ? await callHuggingFace(prompt, {
             maxOutputTokens: 1200,
@@ -3988,7 +4165,10 @@ export async function askAssistant(
           text: {
             verbosity: "medium",
           },
+          stream: true,
         })
+      : provider === "anthropic"
+      ? await callAnthropic(prompt, { maxOutputTokens: 900 })
       : provider === "huggingface"
         ? await callHuggingFace(prompt, {
             maxOutputTokens: 900,

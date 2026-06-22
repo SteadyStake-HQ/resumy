@@ -1,10 +1,10 @@
 import { RESUME_STYLE_CONFIG } from "@/lib/resume-style-config";
 import { groupResumeSkills, type GroupedResumeSkills } from "@/lib/resume-skills";
-import {
-  MAX_TECHNICAL_SKILL_GROUPS,
-  MAX_TECHNICAL_SKILLS_PER_GROUP,
-  sanitizeTechnicalSkillGroups,
-} from "@/lib/technical-skills";
+
+// STRICT COPY display limits: generous bounds that prevent runaway layouts
+// without silently dropping a resume's real skills or categories.
+const MAX_SKILL_GROUPS = 16;
+const MAX_SKILLS_PER_GROUP = 40;
 
 export type ResumeSkillGroup = {
   label: string;
@@ -93,7 +93,7 @@ function normalizeObjectGroups(value: Record<string, unknown>) {
 
 export function normalizeResumeSkillGroups(
   value: unknown,
-  limitPerGroup = MAX_TECHNICAL_SKILLS_PER_GROUP,
+  limitPerGroup = MAX_SKILLS_PER_GROUP,
 ) {
   let groups: ResumeSkillGroup[] = [];
 
@@ -122,14 +122,14 @@ export function normalizeResumeSkillGroups(
     groups = normalizeObjectGroups(value as Record<string, unknown>);
   }
 
-  const technicalGroups = sanitizeTechnicalSkillGroups(groups, {
-    maxGroups: MAX_TECHNICAL_SKILL_GROUPS,
-    maxItemsPerGroup: limitPerGroup,
-  });
+  // STRICT COPY: merge same-label groups and de-dupe identical skills, but keep
+  // every skill and category. We deliberately skip the technical-allowlist
+  // sanitizer (which drops unrecognized skills, renames categories, and moves
+  // items into groups they were never listed under).
   const mergedGroups: ResumeSkillGroup[] = [];
   const globalSeen = new Set<string>();
 
-  for (const group of technicalGroups) {
+  for (const group of groups) {
     let target = mergedGroups.find(
       (candidate) => candidate.label.toLowerCase() === group.label.toLowerCase(),
     );
@@ -139,7 +139,7 @@ export function normalizeResumeSkillGroups(
       mergedGroups.push(target);
     }
 
-    for (const item of group.skills) {
+    for (const item of group.items) {
       appendUnique(target.items, item, globalSeen);
     }
   }
@@ -150,7 +150,7 @@ export function normalizeResumeSkillGroups(
       items: group.items.slice(0, limitPerGroup),
     }))
     .filter((group) => group.items.length)
-    .slice(0, MAX_TECHNICAL_SKILL_GROUPS)
+    .slice(0, MAX_SKILL_GROUPS)
     .sort((a, b) => {
       const aIndex = CATEGORY_ORDER.indexOf(a.label);
       const bIndex = CATEGORY_ORDER.indexOf(b.label);
