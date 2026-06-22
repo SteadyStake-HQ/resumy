@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AI_PROVIDER_OPTIONS } from "@/lib/ai-provider";
 import { useToast } from "@/components/ui/toast-provider";
@@ -117,14 +117,21 @@ export function ProfileForm({
 
   const [nickname, setNickname] = useState(initialNickname);
   const [preferredAI, setPreferredAI] = useState(initialPreferredAI);
-  const [statusMessage, setStatusMessage] = useState("");
+  const [isSaved, setIsSaved] = useState(false);
   const [isPending, setIsPending] = useState(false);
 
   const isPremium = membership.tier === "premium";
 
+  useEffect(() => {
+    if (!isSaved) return;
+
+    const timer = window.setTimeout(() => setIsSaved(false), 2500);
+    return () => window.clearTimeout(timer);
+  }, [isSaved]);
+
   const handleSubmit = async (formData: FormData) => {
     setIsPending(true);
-    setStatusMessage("");
+    setIsSaved(false);
 
     try {
       const response = await fetch("/api/user/profile", {
@@ -147,7 +154,7 @@ export function ProfileForm({
 
       setNickname(payload.user.nickname);
       setPreferredAI(payload.user.settings.preferredAI);
-      setStatusMessage("saved ♡");
+      setIsSaved(true);
       router.refresh();
     } catch {
       showErrorToast("Profile update failed.", { title: "Update failed" });
@@ -266,9 +273,13 @@ export function ProfileForm({
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
+                  justifyContent: "center",
                   gap: 8,
                   padding: "10px 18px",
-                  background: "linear-gradient(135deg, #3FB37A, #4FC38A)",
+                  minWidth: 118,
+                  background: isSaved
+                    ? "linear-gradient(135deg, #E96F8C, #F08BA2)"
+                    : "linear-gradient(135deg, #3FB37A, #4FC38A)",
                   border: "none",
                   borderRadius: 999,
                   color: "#fff",
@@ -278,10 +289,13 @@ export function ProfileForm({
                   letterSpacing: -0.1,
                   cursor: isPending ? "not-allowed" : "pointer",
                   opacity: isPending ? 0.6 : 1,
-                  boxShadow: "0 3px 10px -4px rgba(79,195,138,0.45)",
+                  boxShadow: isSaved
+                    ? "0 3px 10px -4px rgba(233,111,140,0.55)"
+                    : "0 3px 10px -4px rgba(79,195,138,0.45)",
+                  transition: "background 180ms ease, box-shadow 180ms ease, opacity 180ms ease",
                 }}
               >
-                {isPending ? "saving..." : statusMessage || "save profile"}
+                {isPending ? "saving..." : isSaved ? "saved ♡" : "save profile"}
               </button>
             </div>
           </form>

@@ -1450,6 +1450,7 @@ function TaskDetailsModal({
                 style={{
                   display: "flex",
                   flexWrap: "wrap",
+                  justifyContent: "flex-end",
                   gap: 8,
                   marginBottom: 18,
                 }}

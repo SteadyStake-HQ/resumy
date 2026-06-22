@@ -70,6 +70,9 @@ import {
 } from "@/lib/technical-skills";
 
 const OPENAI_MODEL = "gpt-5.4";
+// Bound the streaming attempt so a stalled stream abandons quickly and the
+// non-streaming fallback still completes inside the worker's ack window.
+const OPENAI_STREAM_ATTEMPT_TIMEOUT_MS = 45_000;
 // Anthropic extraction model. Defaults to the latest Opus; override with ANTHROPIC_MODEL.
 const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL?.trim() || "claude-opus-4-8";
 const ANTHROPIC_MAX_ATTEMPTS = 2;
@@ -1215,11 +1218,19 @@ const analyzedJobDescriptionJsonSchema = {
   ],
 } as const satisfies Record<string, unknown>;
 
-// LangSmith observability: wrapOpenAI / wrapSDK trace every request when
-// LANGSMITH_TRACING=true and LANGSMITH_API_KEY are set, and are transparent
-// no-ops otherwise. Clients are wrapped once and reused.
+// LangSmith observability: only wrap the SDK clients when tracing is explicitly
+// enabled. When disabled (the default) the raw SDK clients are used untouched, so
+// the wrapper can never interfere with streaming/iteration on the hot path.
 let openAIClient: OpenAI | null = null;
 let anthropicClient: Anthropic | null = null;
+// Set once a streaming attempt fails, so the process stops paying the streaming
+// timeout on every subsequent call and uses the proven non-streaming path.
+let openAIStreamingDisabled = false;
+
+function isLangSmithTracingEnabled() {
+  const flag = process.env.LANGSMITH_TRACING?.trim().toLowerCase();
+  return (flag === "true" || flag === "1") && Boolean(process.env.LANGSMITH_API_KEY?.trim());
+}
 
 function getOpenAIClient() {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
@@ -1229,9 +1240,8 @@ function getOpenAIClient() {
   }
 
   if (!openAIClient) {
-    openAIClient = wrapOpenAI(
-      new OpenAI({ apiKey, timeout: AI_PROVIDER_REQUEST_TIMEOUT_MS }),
-    );
+    const client = new OpenAI({ apiKey, timeout: AI_PROVIDER_REQUEST_TIMEOUT_MS });
+    openAIClient = isLangSmithTracingEnabled() ? wrapOpenAI(client) : client;
   }
 
   return openAIClient;
@@ -1245,9 +1255,8 @@ function getAnthropicClient() {
   }
 
   if (!anthropicClient) {
-    anthropicClient = wrapSDK(
-      new Anthropic({ apiKey, timeout: AI_PROVIDER_REQUEST_TIMEOUT_MS }),
-    );
+    const client = new Anthropic({ apiKey, timeout: AI_PROVIDER_REQUEST_TIMEOUT_MS });
+    anthropicClient = isLangSmithTracingEnabled() ? wrapSDK(client) : client;
   }
 
   return anthropicClient;
@@ -1772,19 +1781,33 @@ export async function callOpenAI(
         text: options.text,
       } as const;
 
-      const responseText = options.stream
-        ? await withTimeout(
+      let responseText: string | undefined;
+
+      if (options.stream && !openAIStreamingDisabled) {
+        try {
+          responseText = await withTimeout(
             streamOpenAIResponseText(client, requestParams),
-            AI_PROVIDER_REQUEST_TIMEOUT_MS,
-            "OpenAI request timed out.",
-          )
-        : (
-            await withTimeout(
-              client.responses.create(requestParams),
-              AI_PROVIDER_REQUEST_TIMEOUT_MS,
-              "OpenAI request timed out.",
-            )
-          ).output_text?.trim();
+            OPENAI_STREAM_ATTEMPT_TIMEOUT_MS,
+            "OpenAI streaming attempt timed out.",
+          );
+        } catch (streamError) {
+          // Streaming is best-effort: if the streaming transport fails or yields
+          // nothing, fall back to a single non-streaming call rather than failing
+          // the whole extraction. Disable streaming for the rest of this process so
+          // a systemically broken stream can't waste the timeout on every call.
+          openAIStreamingDisabled = true;
+          console.warn("OpenAI streaming failed; falling back to non-streaming.", streamError);
+        }
+      }
+
+      if (!responseText) {
+        const response = await withTimeout(
+          client.responses.create(requestParams),
+          AI_PROVIDER_REQUEST_TIMEOUT_MS,
+          "OpenAI request timed out.",
+        );
+        responseText = response.output_text?.trim();
+      }
 
       if (!responseText) {
         throw new Error("OpenAI did not return any text.");
