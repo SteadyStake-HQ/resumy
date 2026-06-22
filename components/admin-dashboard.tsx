@@ -8,7 +8,6 @@ import {
   TabPanels,
 } from "@headlessui/react";
 import { useMemo, useState } from "react";
-import { PageIntro } from "@/components/ui/page-intro";
 import { StatusBanner } from "@/components/ui/status-banner";
 import { useToast } from "@/components/ui/toast-provider";
 import type { SafeArticle } from "@/lib/article";
@@ -197,303 +196,277 @@ export function AdminDashboard({
   };
 
   return (
-    <section className="space-y-6">
-      <PageIntro
-        eyebrow="Admin"
-        title="Review upgrades, guide the premium queue, and publish helpful content"
-        description="This internal workspace manages membership approvals and the public resource center while keeping the same soft, polished visual language as the rest of the product."
-        badge="Overview"
-        aside={
-          <div className="grid gap-3">
-            <div className="soft-stat">
-              <p className="eyebrow !text-[0.58rem] !tracking-[0.22em]">Pending requests</p>
-              <p className="mt-3 text-2xl font-semibold text-foreground">
-                {requests.length}
-              </p>
-            </div>
-            <div className="soft-stat">
-              <p className="eyebrow !text-[0.58rem] !tracking-[0.22em]">Articles</p>
-              <p className="mt-3 text-2xl font-semibold text-foreground">
-                {articles.length}
-              </p>
-            </div>
+    <section className="bg-[#fbf8f3] text-[#25221f]">
+      <header className="border-b border-[#e8dfd1] px-5 py-8 sm:px-8 lg:px-10">
+        <div className="grid gap-7 lg:grid-cols-[1fr_auto] lg:items-end">
+          <div className="max-w-2xl">
+            <p className="font-mono text-[0.68rem] font-bold uppercase tracking-[0.14em] text-[#6c8f6f]">
+              Control room
+            </p>
+            <h2 className="mt-2 font-display text-3xl font-bold sm:text-4xl">
+              Review access and publish resources.
+            </h2>
+            <p className="mt-3 text-sm leading-7 text-[#6c6660]">
+              Keep membership reviews moving and maintain the public resource library from one focused workspace.
+            </p>
           </div>
-        }
-      />
+          <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-[#ddd2bd] bg-[#ddd2bd] sm:min-w-[22rem]">
+            <AdminStat label="Pending" value={requests.length} tone="peach" />
+            <AdminStat label="Articles" value={articles.length} tone="sage" />
+          </div>
+        </div>
+      </header>
 
       {statusMessage?.tone === "success" ? (
-        <StatusBanner tone="success">{statusMessage.text}</StatusBanner>
+        <div className="border-b border-[#e8dfd1] px-5 py-4 sm:px-8 lg:px-10">
+          <StatusBanner tone="success">{statusMessage.text}</StatusBanner>
+        </div>
       ) : null}
 
       <TabGroup>
-        <TabList className="surface-card flex flex-wrap gap-3 rounded-[1.75rem] p-3">
-          {["Membership Requests", "Articles"].map((label) => (
-            <Tab
-              key={label}
-              className="rounded-full px-5 py-3 text-sm font-semibold text-muted outline-none data-[selected]:bg-foreground data-[selected]:text-white"
-            >
-              {label}
+        <div className="border-b border-[#e8dfd1] px-5 py-4 sm:px-8 lg:px-10">
+          <TabList className="inline-flex rounded-lg border border-[#ddd2bd] bg-[#f2ece2] p-1">
+            <Tab className="rounded-md px-4 py-2.5 text-sm font-bold text-[#6c6660] outline-none data-[selected]:bg-[#25221f] data-[selected]:text-white">
+              Membership requests
+              <span className="ml-2 font-mono text-[0.65rem] opacity-70">{requests.length}</span>
             </Tab>
-          ))}
-        </TabList>
+            <Tab className="rounded-md px-4 py-2.5 text-sm font-bold text-[#6c6660] outline-none data-[selected]:bg-[#25221f] data-[selected]:text-white">
+              Articles
+              <span className="ml-2 font-mono text-[0.65rem] opacity-70">{articles.length}</span>
+            </Tab>
+          </TabList>
+        </div>
 
-        <TabPanels className="mt-6">
-          <TabPanel className="surface-card rounded-[2.2rem] p-6 sm:p-8">
-            <div className="space-y-4">
-              <h2 className="text-2xl font-semibold text-foreground">
-                Pending membership requests
-              </h2>
-              <p className="text-sm leading-7 text-muted">
-                Approve premium access for users who need advanced workflow features.
+        <TabPanels>
+          <TabPanel className="outline-none">
+            <div className="border-b border-[#e8dfd1] px-5 py-6 sm:px-8 lg:px-10">
+              <p className="font-mono text-[0.66rem] font-bold uppercase tracking-[0.13em] text-[#c47752]">
+                Review queue
               </p>
-
-              {requests.length ? (
-                <div className="space-y-4">
-                  {requests.map((request) => (
-                    <article
-                      key={request.id}
-                      className="dream-card p-5"
-                    >
-                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                        <div className="space-y-2">
-                          <p className="text-lg font-semibold text-foreground">
-                            {request.nickname || request.email}
-                          </p>
-                          <p className="text-sm text-muted">{request.email}</p>
-                          <p className="text-sm text-muted">
-                            Requested {request.requestDate
-                              ? dateFormatter.format(new Date(request.requestDate))
-                              : "recently"}
-                          </p>
-                          <div className="rounded-2xl border border-line bg-white/72 px-4 py-3 text-sm leading-7 text-muted">
-                            {request.requestReason || "No reason provided."}
-                          </div>
-                        </div>
-
-                        <div className="flex flex-wrap gap-3">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              void handleMembershipAction(request.id, "approve")
-                            }
-                            disabled={isWorking}
-                            className="button-primary !px-4 !py-3 !text-sm"
-                          >
-                            Approve
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              void handleMembershipAction(request.id, "reject")
-                            }
-                            disabled={isWorking}
-                            className="button-secondary !px-4 !py-3 !text-sm"
-                          >
-                            Reject
-                          </button>
-                        </div>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              ) : (
-                <div className="dream-card border border-dashed border-line px-6 py-10 text-center">
-                  <p className="text-lg font-semibold text-foreground">
-                    No pending requests
-                  </p>
-                  <p className="mt-3 text-sm leading-7 text-muted">
-                    Membership approvals will appear here when free users request premium.
-                  </p>
-                </div>
-              )}
+              <h3 className="mt-1 font-display text-2xl font-bold">Pending membership requests</h3>
+              <p className="mt-2 text-sm leading-6 text-[#6c6660]">
+                Review the member context before granting premium access.
+              </p>
             </div>
-          </TabPanel>
 
-          <TabPanel className="space-y-6">
-            <section className="surface-card rounded-[2.2rem] p-6 sm:p-8">
-              <h2 className="text-2xl font-semibold text-foreground">
-                Create or update a resource article
-              </h2>
-              <p className="mt-3 text-sm leading-7 text-muted">
-                Articles publish straight to the public resource center using markdown content.
-              </p>
-
-              <div className="mt-6 grid gap-5 md:grid-cols-2">
-                <label className="block">
-                  <span className="mb-2 block text-sm font-semibold text-foreground">
-                    Title
-                  </span>
-                  <input
-                    type="text"
-                    value={articleForm.title}
-                    onChange={(event) =>
-                      setArticleForm((currentForm) => ({
-                        ...currentForm,
-                        title: event.target.value,
-                      }))
-                    }
-                    className="input-field"
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="mb-2 block text-sm font-semibold text-foreground">
-                    Slug
-                  </span>
-                  <input
-                    type="text"
-                    value={articleForm.slug}
-                    onChange={(event) =>
-                      setArticleForm((currentForm) => ({
-                        ...currentForm,
-                        slug: event.target.value,
-                      }))
-                    }
-                    className="input-field"
-                    placeholder="optional-custom-slug"
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="mb-2 block text-sm font-semibold text-foreground">
-                    Author
-                  </span>
-                  <input
-                    type="text"
-                    value={articleForm.author}
-                    onChange={(event) =>
-                      setArticleForm((currentForm) => ({
-                        ...currentForm,
-                        author: event.target.value,
-                      }))
-                    }
-                    className="input-field"
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="mb-2 block text-sm font-semibold text-foreground">
-                    Tags
-                  </span>
-                  <input
-                    type="text"
-                    value={articleForm.tags}
-                    onChange={(event) =>
-                      setArticleForm((currentForm) => ({
-                        ...currentForm,
-                        tags: event.target.value,
-                      }))
-                    }
-                    className="input-field"
-                    placeholder="resume, ats, job-search"
-                  />
-                </label>
-              </div>
-
-              <label className="mt-5 block">
-                <span className="mb-2 block text-sm font-semibold text-foreground">
-                  Markdown content
-                </span>
-                <textarea
-                  value={articleForm.content}
-                  onChange={(event) =>
-                    setArticleForm((currentForm) => ({
-                      ...currentForm,
-                      content: event.target.value,
-                    }))
-                  }
-                  rows={16}
-                  className="textarea-field font-mono text-sm"
-                />
-              </label>
-
-              <label className="mt-5 flex items-center gap-3 text-sm text-foreground">
-                <input
-                  type="checkbox"
-                  checked={articleForm.isPublished}
-                  onChange={(event) =>
-                    setArticleForm((currentForm) => ({
-                      ...currentForm,
-                      isPublished: event.target.checked,
-                    }))
-                  }
-                  className="h-4 w-4 accent-accent"
-                />
-                Publish immediately
-              </label>
-
-              <div className="mt-6 flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={() => void submitArticle()}
-                  disabled={
-                    isWorking ||
-                    !articleForm.title.trim() ||
-                    !articleForm.content.trim()
-                  }
-                  className="button-primary !px-5 !py-3 !text-sm"
-                >
-                  {isWorking
-                    ? "Saving..."
-                    : articleForm.id
-                      ? "Update Article"
-                      : "Create Article"}
-                </button>
-                {articleForm.id ? (
-                  <button
-                    type="button"
-                    onClick={() => setArticleForm(emptyArticleForm)}
-                    className="button-secondary !px-5 !py-3 !text-sm"
-                  >
-                    Reset Form
-                  </button>
-                ) : null}
-              </div>
-            </section>
-
-            <section className="surface-card rounded-[2.2rem] p-6 sm:p-8">
-              <h2 className="text-2xl font-semibold text-foreground">
-                Existing articles
-              </h2>
-              <div className="mt-6 space-y-4">
-                {sortedArticles.map((article) => (
-                  <article
-                    key={article.id}
-                    className="dream-card p-5"
-                  >
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="space-y-2">
-                        <div className="flex flex-wrap items-center gap-3">
-                          <p className="text-lg font-semibold text-foreground">
-                            {article.title}
-                          </p>
-                          <span className="rounded-full bg-background px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-foreground">
-                            {article.isPublished ? "Published" : "Draft"}
-                          </span>
+            {requests.length ? (
+              <div className="divide-y divide-[#e8dfd1]">
+                {requests.map((request) => (
+                  <article key={request.id} className="grid gap-5 px-5 py-6 sm:px-8 lg:grid-cols-[minmax(12rem,0.72fr)_minmax(16rem,1.28fr)_auto] lg:items-start lg:px-10">
+                    <div>
+                      <div className="flex items-center gap-3">
+                        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#fff0e5] font-display text-lg font-bold text-[#c47752]">
+                          {(request.nickname || request.email).slice(0, 1).toUpperCase()}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-bold">{request.nickname || request.email}</p>
+                          <p className="truncate text-xs text-[#968f88]">{request.email}</p>
                         </div>
-                        <p className="text-sm text-muted">/{article.slug}</p>
-                        <p className="text-sm text-muted">
-                          {article.updatedAt
-                            ? `Updated ${dateFormatter.format(new Date(article.updatedAt))}`
-                            : "Recently updated"}
-                        </p>
                       </div>
+                      <p className="mt-3 font-mono text-[0.65rem] text-[#968f88]">
+                        {request.requestDate
+                          ? dateFormatter.format(new Date(request.requestDate))
+                          : "Recently submitted"}
+                      </p>
+                    </div>
 
+                    <div className="rounded-lg border border-[#e1d7c7] bg-white px-4 py-3">
+                      <p className="font-mono text-[0.62rem] font-bold uppercase tracking-[0.1em] text-[#968f88]">
+                        Member context
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-[#514c46]">
+                        {request.requestReason || "No reason provided."}
+                      </p>
+                    </div>
+
+                    <div className="flex gap-2 lg:justify-end">
                       <button
                         type="button"
-                        onClick={() => loadArticleForEditing(article)}
-                        className="button-secondary !px-4 !py-3 !text-sm"
+                        onClick={() => void handleMembershipAction(request.id, "approve")}
+                        disabled={isWorking}
+                        className="min-h-10 rounded-full bg-[#5a7c5d] px-4 text-sm font-bold text-white hover:bg-[#48674b] disabled:opacity-45"
                       >
-                        Edit Article
+                        Approve
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleMembershipAction(request.id, "reject")}
+                        disabled={isWorking}
+                        className="min-h-10 rounded-full border border-[#d9b7a5] bg-white px-4 text-sm font-bold text-[#9b5538] hover:bg-[#fff0e5] disabled:opacity-45"
+                      >
+                        Reject
                       </button>
                     </div>
                   </article>
                 ))}
               </div>
-            </section>
+            ) : (
+              <div className="px-5 py-16 text-center sm:px-8 lg:px-10">
+                <span className="mx-auto grid h-11 w-11 place-items-center rounded-lg bg-[#edf3e9] font-mono text-sm font-bold text-[#5a7c5d]">00</span>
+                <h3 className="mt-4 font-display text-xl font-bold">Queue is clear</h3>
+                <p className="mt-2 text-sm text-[#6c6660]">New premium requests will appear here.</p>
+              </div>
+            )}
+          </TabPanel>
+
+          <TabPanel className="outline-none">
+            <div className="grid lg:grid-cols-[minmax(0,1.1fr)_minmax(20rem,0.9fr)]">
+              <section className="border-b border-[#e8dfd1] px-5 py-7 sm:px-8 lg:border-b-0 lg:border-r lg:px-10">
+                <p className="font-mono text-[0.66rem] font-bold uppercase tracking-[0.13em] text-[#6c8f6f]">
+                  {articleForm.id ? "Edit article" : "New article"}
+                </p>
+                <h3 className="mt-1 font-display text-2xl font-bold">
+                  {articleForm.id ? "Update resource" : "Create a resource"}
+                </h3>
+                <p className="mt-2 text-sm leading-6 text-[#6c6660]">
+                  Markdown content publishes directly to the public resource center.
+                </p>
+
+                <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                  <AdminField label="Title">
+                    <input
+                      type="text"
+                      value={articleForm.title}
+                      onChange={(event) => setArticleForm((current) => ({ ...current, title: event.target.value }))}
+                      className="admin-paper-input"
+                    />
+                  </AdminField>
+                  <AdminField label="Slug">
+                    <input
+                      type="text"
+                      value={articleForm.slug}
+                      onChange={(event) => setArticleForm((current) => ({ ...current, slug: event.target.value }))}
+                      className="admin-paper-input"
+                      placeholder="optional-custom-slug"
+                    />
+                  </AdminField>
+                  <AdminField label="Author">
+                    <input
+                      type="text"
+                      value={articleForm.author}
+                      onChange={(event) => setArticleForm((current) => ({ ...current, author: event.target.value }))}
+                      className="admin-paper-input"
+                    />
+                  </AdminField>
+                  <AdminField label="Tags">
+                    <input
+                      type="text"
+                      value={articleForm.tags}
+                      onChange={(event) => setArticleForm((current) => ({ ...current, tags: event.target.value }))}
+                      className="admin-paper-input"
+                      placeholder="resume, ats, job-search"
+                    />
+                  </AdminField>
+                </div>
+
+                <AdminField label="Markdown content" className="mt-4">
+                  <textarea
+                    value={articleForm.content}
+                    onChange={(event) => setArticleForm((current) => ({ ...current, content: event.target.value }))}
+                    rows={15}
+                    className="admin-paper-input resize-y font-mono text-sm leading-6"
+                  />
+                </AdminField>
+
+                <div className="mt-5 flex flex-wrap items-center justify-between gap-4 border-t border-[#e8dfd1] pt-5">
+                  <label className="flex cursor-pointer items-center gap-3 text-sm font-bold">
+                    <input
+                      type="checkbox"
+                      checked={articleForm.isPublished}
+                      onChange={(event) => setArticleForm((current) => ({ ...current, isPublished: event.target.checked }))}
+                      className="h-4 w-4 accent-[#5a7c5d]"
+                    />
+                    Publish immediately
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {articleForm.id ? (
+                      <button
+                        type="button"
+                        onClick={() => setArticleForm(emptyArticleForm)}
+                        className="min-h-10 rounded-full border border-[#ddd2bd] bg-white px-4 text-sm font-bold hover:bg-[#f2ece2]"
+                      >
+                        Clear editor
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => void submitArticle()}
+                      disabled={isWorking || !articleForm.title.trim() || !articleForm.content.trim()}
+                      className="min-h-10 rounded-full bg-[#25221f] px-5 text-sm font-bold text-white hover:bg-[#3b3732] disabled:cursor-not-allowed disabled:opacity-45"
+                    >
+                      {isWorking ? "Saving..." : articleForm.id ? "Update article" : "Create article"}
+                    </button>
+                  </div>
+                </div>
+              </section>
+
+              <aside className="bg-[#f5efe6] px-5 py-7 sm:px-8 lg:px-8">
+                <div className="flex items-end justify-between gap-4">
+                  <div>
+                    <p className="font-mono text-[0.66rem] font-bold uppercase tracking-[0.13em] text-[#c47752]">Library</p>
+                    <h3 className="mt-1 font-display text-2xl font-bold">Existing articles</h3>
+                  </div>
+                  <span className="font-mono text-xs text-[#968f88]">{articles.length} total</span>
+                </div>
+
+                {sortedArticles.length ? (
+                  <div className="mt-5 divide-y divide-[#ddd2bd] border-y border-[#ddd2bd]">
+                    {sortedArticles.map((article) => (
+                      <article key={article.id} className="py-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-sm font-bold">{article.title}</p>
+                              <span className={`rounded-full px-2 py-1 font-mono text-[0.58rem] font-bold uppercase ${article.isPublished ? "bg-[#d8e6d3] text-[#5a7c5d]" : "bg-[#e7e0f2] text-[#685c7d]"}`}>
+                                {article.isPublished ? "Published" : "Draft"}
+                              </span>
+                            </div>
+                            <p className="mt-1 truncate font-mono text-[0.65rem] text-[#968f88]">/{article.slug}</p>
+                            <p className="mt-2 text-xs text-[#6c6660]">
+                              {article.updatedAt
+                                ? `Updated ${dateFormatter.format(new Date(article.updatedAt))}`
+                                : "Recently updated"}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => loadArticleForEditing(article)}
+                            className="shrink-0 rounded-full border border-[#cfc3af] bg-white px-3 py-2 text-xs font-bold hover:bg-[#fbf8f3]"
+                          >
+                            Edit
+                          </button>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-6 rounded-lg border border-dashed border-[#cfc3af] px-4 py-8 text-center text-sm text-[#6c6660]">
+                    No articles have been created yet.
+                  </p>
+                )}
+              </aside>
+            </div>
           </TabPanel>
         </TabPanels>
       </TabGroup>
     </section>
+  );
+}
+
+function AdminStat({ label, value, tone }: { label: string; value: number; tone: "sage" | "peach" }) {
+  return (
+    <div className="bg-white px-4 py-3">
+      <p className="font-mono text-[0.62rem] uppercase tracking-[0.12em] text-[#968f88]">{label}</p>
+      <p className={`mt-1 text-2xl font-bold ${tone === "sage" ? "text-[#5a7c5d]" : "text-[#c47752]"}`}>{value}</p>
+    </div>
+  );
+}
+
+function AdminField({ label, className = "", children }: { label: string; className?: string; children: React.ReactNode }) {
+  return (
+    <label className={`block ${className}`}>
+      <span className="mb-2 block text-sm font-bold">{label}</span>
+      {children}
+    </label>
   );
 }

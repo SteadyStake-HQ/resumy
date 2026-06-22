@@ -646,6 +646,22 @@ textarea {
     inset 0 1px 0 rgba(255, 255, 255, 0.92);
 }
 
+.admin-paper-input {
+  width: 100%;
+  min-height: 2.75rem;
+  border: 1px solid #ddd2bd;
+  border-radius: 0.5rem;
+  background: #fff;
+  padding: 0.7rem 0.85rem;
+  color: #25221f;
+  outline: none;
+}
+
+.admin-paper-input:focus {
+  border-color: #6c8f6f;
+  box-shadow: 0 0 0 3px rgba(108, 143, 111, 0.14);
+}
+
 .profile-compact .surface-card {
   border-radius: 1.35rem;
 }
@@ -808,6 +824,22 @@ body:has(.hide-app-navbar) header[data-app-navbar="true"] {
   border-color: color-mix(in srgb, var(--highlight) 28%, white);
   background: color-mix(in srgb, var(--highlight) 12%, white);
   color: color-mix(in srgb, var(--foreground) 90%, black);
+}
+
+@media (max-width: 639px) {
+  .profile-compact .page-hero-heading-row {
+    position: relative;
+    min-height: 10.5rem;
+    align-items: flex-start !important;
+  }
+
+  .profile-compact .page-hero-heading-row > :first-child {
+    min-width: 0;
+  }
+
+  .profile-compact .page-hero-mascot {
+    display: none;
+  }
 }
 
 .profile-compact .status-banner {

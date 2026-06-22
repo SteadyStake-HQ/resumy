@@ -163,6 +163,7 @@ export function PageHero({
             }}
           >
             <div
+              className="page-hero-heading-row"
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -277,7 +278,11 @@ export function PageHero({
                   {subtitle}
                 </div>
               </div>
-              {mascot ? <div style={{ flexShrink: 0 }}>{mascot}</div> : null}
+              {mascot ? (
+                <div className="page-hero-mascot" style={{ flexShrink: 0 }}>
+                  {mascot}
+                </div>
+              ) : null}
             </div>
           </div>
         </div>

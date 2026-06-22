@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { PageIntro } from "@/components/ui/page-intro";
 import { StatusBanner } from "@/components/ui/status-banner";
 import { useToast } from "@/components/ui/toast-provider";
 import {
@@ -77,181 +76,203 @@ export function MembershipPanel({ user }: MembershipPanelProps) {
   const isPremium = hasPremiumAccess(membership.tier);
 
   return (
-    <div className="space-y-8">
-      <PageIntro
-        eyebrow="Membership"
-        title="Choose how much help you want from your resume studio"
-        description="Free members can already upload, tailor, and export. Premium adds comparison, cover letters, public sharing, and a conversational resume coach."
-        badge="Current tier"
-        aside={
-          <div className="space-y-2 text-sm text-muted">
-            <p className="font-semibold capitalize text-foreground">
-              {membership.tier}
+    <div className="bg-[#fbf8f3] text-[#25221f]">
+      <section className="border-b border-[#e8dfd1] px-5 py-8 sm:px-8 lg:px-10">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl">
+            <p className="font-mono text-[0.68rem] font-bold uppercase tracking-[0.14em] text-[#6c8f6f]">
+              01 / plan overview
             </p>
-            <p>Status: {membership.status}</p>
-            <p>Request status: {membership.requestStatus}</p>
-            {membership.expiresAt ? (
-              <p>
-                Expires {dateFormatter.format(new Date(membership.expiresAt))}
-              </p>
-            ) : null}
-          </div>
-        }
-      />
-
-      <section className="surface-card rounded-[2.2rem] p-6 sm:p-8">
-        <div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="space-y-4">
-            <h2 className="font-[var(--font-fraunces)] text-4xl font-semibold tracking-tight text-foreground">
-              Manage access to premium tools
+            <h2 className="mt-2 font-display text-3xl font-bold text-[#25221f] sm:text-4xl">
+              Choose the toolkit that fits your search.
             </h2>
-            <p className="max-w-3xl text-sm leading-7 text-muted">
-              Upgrade when you want deeper iteration support and recruiter-facing extras.
+            <p className="mt-3 text-sm leading-7 text-[#6c6660]">
+              Start with the essentials, then unlock deeper comparison,
+              publishing, and coaching tools when you need them.
             </p>
-
-            {statusMessage?.tone === "success" ? (
-              <StatusBanner tone="success">
-                {statusMessage.text}
-              </StatusBanner>
-            ) : null}
-
-            {!isPremium ? (
-              <div className="dream-card p-5">
-                <h2 className="text-xl font-semibold text-foreground">
-                  Request premium upgrade
-                </h2>
-                <p className="mt-2 text-sm leading-7 text-muted">
-                  Share how you plan to use premium features so the admin review has context.
-                </p>
-
-                {membership.requestStatus === "pending" ? (
-                  <StatusBanner tone="info" className="mt-4">
-                    Your request is pending review.
-                    {membership.requestDate
-                      ? ` Submitted ${dateFormatter.format(new Date(membership.requestDate))}.`
-                      : ""}
-                  </StatusBanner>
-                ) : null}
-
-                {membership.requestStatus === "rejected" ? (
-                  <StatusBanner tone="error" className="mt-4">
-                    Your last request was not approved. You can refine the reason below and submit again.
-                  </StatusBanner>
-                ) : null}
-
-                <label className="mt-5 block">
-                  <span className="mb-2 block text-sm font-semibold text-foreground">
-                    Why do you need premium?
-                  </span>
-                  <textarea
-                    value={reason}
-                    onChange={(event) => setReason(event.target.value)}
-                    rows={6}
-                    maxLength={500}
-                    className="textarea-field"
-                    placeholder="Example: I want to compare tailored versions, generate cover letters faster, and share polished public links with recruiters."
-                  />
-                  <p className="mt-2 text-xs uppercase tracking-[0.18em] text-muted">
-                    {reason.trim().length}/500 characters
-                  </p>
-                </label>
-
-                <button
-                  type="button"
-                  onClick={() => void submitRequest()}
-                  disabled={isSubmitting || reason.trim().length < 20}
-                  className="button-primary mt-5"
-                >
-                  {isSubmitting ? "Submitting..." : "Request Premium Upgrade"}
-                </button>
-              </div>
-            ) : (
-              <div className="dream-card p-5">
-                <h2 className="text-xl font-semibold">Premium is active</h2>
-                <p className="mt-2 text-sm leading-7">
-                  Your advanced workflow is unlocked, including comparison, cover letters, public links, and the AI assistant.
-                </p>
-                <div className="mt-4 flex flex-wrap gap-3">
-                  <Link
-                    href="/history"
-                    className="button-primary !px-4 !py-2.5 !text-sm"
-                  >
-                    Open History
-                  </Link>
-                  <Link
-                    href="/retail"
-                    className="button-secondary !px-4 !py-2.5 !text-sm"
-                  >
-                    Create Cover Letter
-                  </Link>
-                </div>
-              </div>
-            )}
           </div>
 
-          <aside className="space-y-5">
-            <div className="rounded-[1.75rem] bg-[linear-gradient(145deg,#263552,#4c5b82)] p-6 text-white shadow-[0_28px_70px_-42px_rgba(38,53,82,0.58)]">
-              <p className="text-xs uppercase tracking-[0.28em] text-white/60">
-                Current tier
+          <div className="grid min-w-0 grid-cols-2 gap-px overflow-hidden rounded-lg border border-[#ddd2bd] bg-[#ddd2bd] sm:min-w-[22rem]">
+            <div className="bg-white px-4 py-3">
+              <p className="font-mono text-[0.62rem] uppercase tracking-[0.12em] text-[#968f88]">
+                Current plan
               </p>
-              <p className="mt-3 font-[var(--font-fraunces)] text-5xl font-semibold capitalize">
-                {membership.tier}
-              </p>
-              <p className="mt-3 text-sm leading-7 text-white/70">
-                Status: {membership.status}
-                {membership.expiresAt
-                  ? ` • Expires ${dateFormatter.format(new Date(membership.expiresAt))}`
-                  : ""}
-              </p>
-              <p className="mt-3 text-sm leading-7 text-white/70">
-                Request status: {membership.requestStatus}
-              </p>
+              <p className="mt-1 text-lg font-bold capitalize">{membership.tier}</p>
             </div>
+            <div className="bg-white px-4 py-3">
+              <p className="font-mono text-[0.62rem] uppercase tracking-[0.12em] text-[#968f88]">
+                Access
+              </p>
+              <p className="mt-1 text-lg font-bold capitalize">{membership.status}</p>
+            </div>
+          </div>
+        </div>
+      </section>
 
-            <div className="surface-card rounded-[1.75rem] p-5">
-              <p className="eyebrow !text-[0.62rem] !tracking-[0.26em]">
-                Free includes
-              </p>
-              <ul className="mt-4 space-y-3">
-                {FREE_TIER_BENEFITS.map((benefit) => (
-                  <li
-                    key={benefit.title}
-                    className="dream-card px-4 py-3"
-                  >
-                    <p className="text-sm font-semibold text-foreground">
-                      {benefit.title}
-                    </p>
-                    <p className="mt-1 text-sm leading-6 text-muted">
-                      {benefit.description}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            </div>
+      <section className="grid border-b border-[#e8dfd1] lg:grid-cols-2">
+        <PlanColumn
+          label="Free"
+          description="A complete foundation for building and exporting strong applications."
+          benefits={FREE_TIER_BENEFITS}
+          active={!isPremium}
+          tone="sage"
+        />
+        <PlanColumn
+          label="Premium"
+          description="Advanced tools for faster iteration and polished recruiter-facing work."
+          benefits={PREMIUM_TIER_BENEFITS}
+          active={isPremium}
+          tone="peach"
+        />
+      </section>
 
-            <div className="surface-card rounded-[1.75rem] p-5">
-              <p className="eyebrow !text-[0.62rem] !tracking-[0.26em]">
-                Premium adds
+      <section className="grid lg:grid-cols-[0.72fr_1.28fr]">
+        <aside className="border-b border-[#e8dfd1] bg-[#25221f] px-5 py-8 text-white sm:px-8 lg:border-b-0 lg:border-r lg:px-10">
+          <p className="font-mono text-[0.68rem] uppercase tracking-[0.14em] text-[#a9c6aa]">
+            02 / membership status
+          </p>
+          <p className="mt-4 font-display text-4xl font-bold capitalize">
+            {membership.tier}
+          </p>
+          <div className="mt-6 space-y-3 border-t border-white/15 pt-5 text-sm text-white/70">
+            <p>Status: <span className="font-semibold text-white">{membership.status}</span></p>
+            <p>Request: <span className="font-semibold text-white">{membership.requestStatus}</span></p>
+            {membership.expiresAt ? (
+              <p>Expires: <span className="font-semibold text-white">{dateFormatter.format(new Date(membership.expiresAt))}</span></p>
+            ) : null}
+          </div>
+        </aside>
+
+        <div className="px-5 py-8 sm:px-8 lg:px-10">
+          {statusMessage?.tone === "success" ? (
+            <StatusBanner tone="success" className="mb-5">
+              {statusMessage.text}
+            </StatusBanner>
+          ) : null}
+
+          {!isPremium ? (
+            <div>
+              <p className="font-mono text-[0.68rem] font-bold uppercase tracking-[0.14em] text-[#c47752]">
+                Request access
               </p>
-              <ul className="mt-4 space-y-3">
-                {PREMIUM_TIER_BENEFITS.map((benefit) => (
-                  <li
-                    key={benefit.title}
-                    className="dream-card px-4 py-3"
-                  >
-                    <p className="text-sm font-semibold text-foreground">
-                      {benefit.title}
-                    </p>
-                    <p className="mt-1 text-sm leading-6 text-muted">
-                      {benefit.description}
-                    </p>
-                  </li>
-                ))}
-              </ul>
+              <h3 className="mt-2 font-display text-2xl font-bold">
+                Tell us how premium would help.
+              </h3>
+              <p className="mt-2 max-w-2xl text-sm leading-7 text-[#6c6660]">
+                A little context helps the admin review your request quickly.
+              </p>
+
+              {membership.requestStatus === "pending" ? (
+                <StatusBanner tone="info" className="mt-5">
+                  Your request is pending review.
+                  {membership.requestDate
+                    ? ` Submitted ${dateFormatter.format(new Date(membership.requestDate))}.`
+                    : ""}
+                </StatusBanner>
+              ) : null}
+
+              {membership.requestStatus === "rejected" ? (
+                <StatusBanner tone="error" className="mt-5">
+                  Your last request was not approved. Update the reason and try again.
+                </StatusBanner>
+              ) : null}
+
+              <label className="mt-5 block">
+                <span className="mb-2 block text-sm font-bold">Why do you need premium?</span>
+                <textarea
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                  rows={5}
+                  maxLength={500}
+                  className="w-full resize-y rounded-lg border border-[#ddd2bd] bg-white px-4 py-3 text-sm leading-6 outline-none focus:border-[#6c8f6f] focus:ring-2 focus:ring-[#6c8f6f]/15"
+                  placeholder="I want to compare tailored versions, create cover letters, and share polished links with recruiters."
+                />
+                <span className="mt-2 block text-right font-mono text-[0.65rem] text-[#968f88]">
+                  {reason.trim().length} / 500
+                </span>
+              </label>
+
+              <button
+                type="button"
+                onClick={() => void submitRequest()}
+                disabled={isSubmitting || reason.trim().length < 20}
+                className="mt-4 inline-flex min-h-11 items-center justify-center rounded-full bg-[#25221f] px-5 text-sm font-bold text-white shadow-sm hover:bg-[#3b3732] disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                {isSubmitting ? "Submitting..." : "Request premium access"}
+              </button>
             </div>
-          </aside>
+          ) : (
+            <div>
+              <p className="font-mono text-[0.68rem] font-bold uppercase tracking-[0.14em] text-[#6c8f6f]">
+                Premium active
+              </p>
+              <h3 className="mt-2 font-display text-2xl font-bold">
+                Your full studio is ready.
+              </h3>
+              <p className="mt-2 max-w-2xl text-sm leading-7 text-[#6c6660]">
+                Comparison, cover letters, public links, and the resume coach are all unlocked.
+              </p>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Link href="/history" className="button-primary !px-5 !py-3 !text-sm">
+                  Open history
+                </Link>
+                <Link href="/retail" className="button-secondary !px-5 !py-3 !text-sm">
+                  Create cover letter
+                </Link>
+              </div>
+            </div>
+          )}
         </div>
       </section>
     </div>
+  );
+}
+
+function PlanColumn({
+  label,
+  description,
+  benefits,
+  active,
+  tone,
+}: {
+  label: string;
+  description: string;
+  benefits: Array<{ title: string; description: string }>;
+  active: boolean;
+  tone: "sage" | "peach";
+}) {
+  const accent = tone === "sage" ? "#6c8f6f" : "#c47752";
+  const tint = tone === "sage" ? "#edf3e9" : "#fff0e5";
+
+  return (
+    <article className="border-b border-[#e8dfd1] px-5 py-8 last:border-b-0 sm:px-8 lg:border-b-0 lg:border-r lg:px-10 lg:last:border-r-0">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="font-mono text-[0.65rem] uppercase tracking-[0.14em]" style={{ color: accent }}>
+            {label} plan
+          </p>
+          <h3 className="mt-2 font-display text-3xl font-bold">{label}</h3>
+        </div>
+        {active ? (
+          <span className="rounded-full px-3 py-1 font-mono text-[0.62rem] font-bold uppercase tracking-[0.1em]" style={{ background: tint, color: accent }}>
+            Current
+          </span>
+        ) : null}
+      </div>
+      <p className="mt-3 max-w-xl text-sm leading-7 text-[#6c6660]">{description}</p>
+      <ul className="mt-6 divide-y divide-[#e8dfd1] border-y border-[#e8dfd1]">
+        {benefits.map((benefit, index) => (
+          <li key={benefit.title} className="grid grid-cols-[2rem_1fr] gap-3 py-4">
+            <span className="grid h-7 w-7 place-items-center rounded-lg font-mono text-[0.65rem] font-bold" style={{ background: tint, color: accent }}>
+              {String(index + 1).padStart(2, "0")}
+            </span>
+            <div>
+              <p className="text-sm font-bold">{benefit.title}</p>
+              <p className="mt-1 text-sm leading-6 text-[#6c6660]">{benefit.description}</p>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </article>
   );
 }
