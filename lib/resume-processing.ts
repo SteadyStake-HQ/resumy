@@ -224,10 +224,9 @@ const SKILL_HEADING_SET = createHeadingSet(SKILL_HEADINGS);
 const EXPERIENCE_HEADING_SET = createHeadingSet(EXPERIENCE_HEADINGS);
 const EDUCATION_HEADING_SET = createHeadingSet(EDUCATION_HEADINGS);
 
-let isPdfWorkerConfigured = false;
+let isPdfRuntimeConfigured = false;
 let pdfParseModule: typeof import("pdf-parse") | null = null;
 let mammothModule: typeof import("mammoth") | null = null;
-let pdfWorkerModulePromise: Promise<void> | null = null;
 
 function getPdfParseModule() {
   if (!pdfParseModule) {
@@ -247,56 +246,20 @@ function getMammothModule() {
   return mammothModule;
 }
 
-function loadPdfWorkerModule() {
-  const runtimeRequire = eval("require") as NodeRequire;
-  const workerModuleName = ["pdf-parse", "worker"].join("/");
-
-  runtimeRequire(workerModuleName);
-}
-
-function waitForPdfWorkerReady(timeoutMs = 1000) {
-  return new Promise<void>((resolve, reject) => {
-    const startedAt = Date.now();
-
-    const checkReady = () => {
-      const workerMessageHandler = (
-        globalThis as typeof globalThis & {
-          pdfjsWorker?: { WorkerMessageHandler?: unknown };
-        }
-      ).pdfjsWorker?.WorkerMessageHandler;
-
-      if (workerMessageHandler) {
-        resolve();
-        return;
-      }
-
-      if (Date.now() - startedAt >= timeoutMs) {
-        reject(new Error("The PDF worker could not be loaded on the server."));
-        return;
-      }
-
-      setTimeout(checkReady, 10);
-    };
-
-    checkReady();
-  });
-}
-
-async function ensurePdfWorkerConfigured() {
-  if (isPdfWorkerConfigured) {
+function ensurePdfRuntimeConfigured() {
+  if (isPdfRuntimeConfigured) {
     return;
   }
 
-  if (!pdfWorkerModulePromise) {
-    pdfWorkerModulePromise = Promise.resolve().then(() => {
-      loadPdfWorkerModule();
-      getPdfParseModule();
-      return waitForPdfWorkerReady();
-    });
-  }
-
-  await pdfWorkerModulePromise;
-  isPdfWorkerConfigured = true;
+  // pdf.js expects these DOM geometry classes even when only extracting text.
+  // Keep this require literal so Next.js traces the native server dependency.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { DOMMatrix, ImageData, Path2D } = require("@napi-rs/canvas") as typeof import(
+    "@napi-rs/canvas"
+  );
+  Object.assign(globalThis, { DOMMatrix, ImageData, Path2D });
+  getPdfParseModule();
+  isPdfRuntimeConfigured = true;
 }
 
 export function extractDocumentTitleFromFileName(fileName: string) {
@@ -1493,7 +1456,7 @@ export async function extractDocumentTextFromFile(file: File) {
   }
 
   if (extension === ".pdf") {
-    await ensurePdfWorkerConfigured();
+    ensurePdfRuntimeConfigured();
     const { PDFParse } = await getPdfParseModule();
 
     const parser = new PDFParse({
