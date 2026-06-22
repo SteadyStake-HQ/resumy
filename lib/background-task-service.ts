@@ -446,6 +446,15 @@ async function failStalledTaskiqDispatches() {
   );
 }
 
+function isBackgroundTaskLeaseConflict(error: unknown) {
+  if (!error || typeof error !== "object" || !("code" in error)) {
+    return false;
+  }
+
+  const code = error.code;
+  return code === 11000 || code === "P2002" || code === "23505";
+}
+
 async function acquireBackgroundTaskDispatchLease(ownerToken: string) {
   const now = new Date();
   const expiresAt = new Date(now.getTime() + BACKGROUND_TASK_DISPATCH_LEASE_MS);
@@ -473,12 +482,7 @@ async function acquireBackgroundTaskDispatchLease(ownerToken: string) {
 
     return lease?.ownerToken === ownerToken;
   } catch (error) {
-    if (
-      error &&
-      typeof error === "object" &&
-      "code" in error &&
-      error.code === 11000
-    ) {
+    if (isBackgroundTaskLeaseConflict(error)) {
       return false;
     }
 
@@ -1748,7 +1752,7 @@ async function acquireResumeTailoringDispatchLease(ownerToken: string) {
 
     return lease?.ownerToken === ownerToken;
   } catch (error) {
-    if (error && typeof error === "object" && "code" in error && error.code === 11000) {
+    if (isBackgroundTaskLeaseConflict(error)) {
       return false;
     }
     throw error;

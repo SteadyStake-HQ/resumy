@@ -50,7 +50,6 @@ NEXTAUTH_URL=http://localhost:3000
 APP_BASE_URL=http://localhost:3000
 GEMINI_API_KEY=replace-with-your-gemini-api-key
 OPENAI_API_KEY=replace-with-your-openai-api-key
-OPENAI_MODEL=gpt-5.5
 # Prefer numbered tokens for router-based Hugging Face selection.
 HF_TOKEN_1=replace-with-your-first-huggingface-token
 HF_TOKEN_2=replace-with-your-second-huggingface-token
@@ -163,4 +162,4 @@ npm run build
 
 The build script uses webpack because the default Next.js 16 Turbopack build path exits early in this workspace environment, while the webpack build completes successfully.
 
-Resume Foundry defaults AI features to OpenAI GPT-5.5, with Gemini and Hugging Face still available from the user's profile setting. If the selected provider is unavailable or its API key is missing, the upload, tailoring, cover-letter, and assistant flows fall back to deterministic local behavior instead of crashing.
+Resume Foundry defaults AI features to OpenAI GPT-5.4, with Gemini and Hugging Face still available from the user's profile setting. If the selected provider is unavailable or its API key is missing, the upload, tailoring, cover-letter, and assistant flows fall back to deterministic local behavior instead of crashing.

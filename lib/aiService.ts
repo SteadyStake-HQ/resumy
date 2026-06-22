@@ -67,7 +67,7 @@ import {
   technicalSkillKey,
 } from "@/lib/technical-skills";
 
-const OPENAI_MODEL = process.env.OPENAI_MODEL?.trim() || "gpt-5.5";
+const OPENAI_MODEL = "gpt-5.4";
 const SECTION_AI_TIMEOUT_MS = 45_000;
 const AI_PROVIDER_REQUEST_TIMEOUT_MS = 120_000;
 const HUGGINGFACE_CONTEXT_WINDOW_TOKENS = 16384;

@@ -12,9 +12,8 @@ export const AI_PROVIDER_OPTIONS = [
   },
   {
     value: "openai",
-    label: "OpenAI GPT-5.5",
-    description:
-      "Default provider using GPT-5.5, or the server OPENAI_MODEL override when configured.",
+    label: "OpenAI GPT-5.4",
+    description: "Default provider using GPT-5.4 for resume parsing and analysis.",
   },
   {
     value: "huggingface",
