@@ -17,7 +17,14 @@ const HF_SKILLS_OUTPUT_SHAPE = `SKILLS OUTPUT SHAPE — STRICT (overrides any ea
 If the resume groups skills under categories, emit one string per skill in the form "<Category>: <Skill>" using the EXACT category label from the resume.
 If the resume has no category labels, emit each skill as a plain string with no prefix.
 
-EVERY visible skill must appear, in the resume's order. If the resume shows 27 skills, the array must contain at least 27 skill strings.
+COPY MODE — preserve the skill ↔ category relation exactly:
+- Each skill stays under the SAME category it is printed under. Never move a skill to a different category, even if it seems to fit better.
+- Use ONLY category labels literally printed in the resume. Never invent "Other", "Tools", "Additional", "Technical Skills", etc.
+- Never add a skill that is not literally printed. Never expand abbreviations or add synonyms.
+- Never deduplicate, never sample, never truncate a long list.
+- A category label by itself is NOT a skill (do not emit "Languages" as a skill). A skill is never a category.
+
+EVERY visible skill must appear, in the resume's order. If the resume shows 27 skills, the array must contain at least 27 skill strings. If you emit more than the resume lists, you invented something — fix it.
 
 Correct:
   "skills": ["Languages: Python", "Languages: JavaScript", "Backend: Node.js"]
@@ -26,6 +33,9 @@ Wrong:
   "skills": {"Languages": ["Python"]}                       ← object map
   "skills": [{"category": "Languages", "items": ["Python"]}] ← array of objects
   "skills": ["Languages: Python, JavaScript"]                ← multi-skill string
+  "skills": ["Languages"]                                     ← category emitted as a skill
+  "skills": ["DevOps: Docker"]  (when Docker was printed under "Languages") ← moved skill
+  "skills": ["Tools: Git"]      (when no "Tools" category exists)           ← invented category
   "skills": []                                                ← empty when skills are present
 
 MULTI-COLUMN RESUMES (CRITICAL):
