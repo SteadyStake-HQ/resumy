@@ -690,6 +690,49 @@ async function claimResumeAnalysisTasksForProcessing(
   return claimedTasks;
 }
 
+async function reclaimRunningResumeAnalysisTask(taskId: string) {
+  const existingTask = await BackgroundTask.findOne({
+    _id: taskId,
+    type: "resume_analysis",
+    status: "running",
+    processingToken: { $ne: null },
+  })
+    .select("_id processingToken")
+    .lean();
+
+  if (!existingTask?.processingToken) {
+    return null;
+  }
+
+  const processingToken = randomUUID();
+  const reclaimedTask = await BackgroundTask.findOneAndUpdate(
+    {
+      _id: taskId,
+      status: "running",
+      processingToken: existingTask.processingToken,
+    },
+    {
+      processingToken,
+      startedAt: new Date(),
+      stageKey: "preparing",
+      stageLabel: "Resuming background processing",
+      progressPercent: 5,
+      $push: {
+        events: {
+          label: "Recovered an orphaned background-processing claim",
+          tone: "info",
+          createdAt: new Date(),
+        },
+      },
+    },
+    { returnDocument: "after" },
+  );
+
+  return reclaimedTask?._id
+    ? { id: reclaimedTask._id.toString(), processingToken }
+    : null;
+}
+
 function enqueueLocalResumeTailoringProcessing(taskId: string) {
   void processPendingResumeTailoringTasks(taskId).catch(async (error) => {
     const errorMessage =
@@ -1115,6 +1158,30 @@ export async function processPendingResumeAnalysisTasks(preferredTaskId?: string
   await connectToDatabase();
   await failTimedOutBackgroundTasks();
 
+  const normalizedPreferredTaskId = preferredTaskId?.trim() || null;
+  if (normalizedPreferredTaskId) {
+    const reclaimedTask = await reclaimRunningResumeAnalysisTask(
+      normalizedPreferredTaskId,
+    );
+
+    if (reclaimedTask) {
+      console.warn("[resume-processing] reclaimed_orphaned_task", {
+        taskId: reclaimedTask.id,
+      });
+      await processResumeAnalysisTask(
+        reclaimedTask.id,
+        reclaimedTask.processingToken,
+      );
+      await kickResumeAnalysisDispatcherIfStalled();
+      return {
+        dispatched: true,
+        busy: false,
+        processedCount: 1,
+        reclaimed: true,
+      };
+    }
+  }
+
   const ownerToken = randomUUID();
   const acquiredLease = await acquireBackgroundTaskDispatchLease(ownerToken);
 
@@ -1132,7 +1199,7 @@ export async function processPendingResumeAnalysisTasks(preferredTaskId?: string
     if (availableSlots > 0) {
       const nextTaskIds = await findNextPendingResumeAnalysisTaskIds(
         availableSlots,
-        preferredTaskId?.trim() || null,
+        normalizedPreferredTaskId,
       );
       claimedTasks = await claimResumeAnalysisTasksForProcessing(nextTaskIds);
     }
@@ -1611,21 +1678,36 @@ export async function processResumeAnalysisTask(
         ? error.message
         : "Something went wrong while processing the background task.";
 
-    task.status = "failed";
-    task.stageKey = "failed";
-    task.stageLabel = "Task failed";
-    task.error = errorMessage;
-    task.completedAt = new Date();
-    task.processingToken = null;
-    task.events.push({
-      label: errorMessage,
-      tone: "error",
-      createdAt: new Date(),
-    });
-    await task.save();
+    const failedTask = await BackgroundTask.findOneAndUpdate(
+      { _id: taskId, processingToken },
+      {
+        status: "failed",
+        stageKey: "failed",
+        stageLabel: "Task failed",
+        error: errorMessage,
+        completedAt: new Date(),
+        processingToken: null,
+        $push: {
+          events: {
+            label: errorMessage,
+            tone: "error",
+            createdAt: new Date(),
+          },
+        },
+      },
+      { returnDocument: "after" },
+    );
+
+    if (!failedTask) {
+      console.warn("[resume-processing] stale_failure_ignored", {
+        taskId,
+        error: errorMessage,
+      });
+      return null;
+    }
 
     return {
-      task: toSafeBackgroundTask(task),
+      task: toSafeBackgroundTask(failedTask),
       resume: null,
     };
   } finally {
