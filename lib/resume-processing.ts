@@ -289,8 +289,8 @@ async function ensurePdfWorkerConfigured() {
 
   if (!pdfWorkerModulePromise) {
     pdfWorkerModulePromise = Promise.resolve().then(() => {
-      getPdfParseModule();
       loadPdfWorkerModule();
+      getPdfParseModule();
       return waitForPdfWorkerReady();
     });
   }
