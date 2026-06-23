@@ -54,6 +54,7 @@ const RESUME_EXTRACTION_AI_TIMEOUT_MS = 120 * 1000;
 const HUGGINGFACE_RESUME_EXTRACTION_AI_TIMEOUT_MS = 240 * 1000;
 const RESUME_ANALYSIS_AI_TIMEOUT_MS = 90 * 1000;
 const RESUME_TAILORING_AI_TIMEOUT_MS = 120 * 1000;
+const JOB_DESCRIPTION_ANALYSIS_AI_TIMEOUT_MS = 90 * 1000;
 
 function buildOriginalResumeTailoringContext(resume: {
   fileName?: string | null;
@@ -2041,16 +2042,39 @@ export async function processResumeTailoringTask(taskId: string) {
     // Fall back to inline analysis if pre-computed result isn't available yet
     if (!analyzedJobDescription) {
       const jdWordCount = jobDescriptionContent.trim().split(/\s+/).filter(Boolean).length;
-      analyzedJobDescription =
-        jdWordCount >= 30
-          ? await analyzeJobDescriptionWithAI(jobDescriptionContent, preferredAI, {
+      const localFallbackAnalysis = () =>
+        normalizeAnalyzedJobDescription(null, jobDescriptionContent, {
+          title: task.tailoringPayload.jobTitle ?? "",
+          company: task.tailoringPayload.jobCompany ?? "",
+        });
+
+      if (jdWordCount >= 30) {
+        try {
+          // Guard the inline analysis with a timeout so a hung/slow provider
+          // can't freeze the whole pipeline at the "Analyzing job description"
+          // stage (previously this awaited with no timeout or fallback).
+          analyzedJobDescription = await withTimeout(
+            analyzeJobDescriptionWithAI(jobDescriptionContent, preferredAI, {
               geminiRouterIndex,
               huggingFaceRouterIndex,
-            })
-          : normalizeAnalyzedJobDescription(null, jobDescriptionContent, {
-              title: task.tailoringPayload.jobTitle ?? "",
-              company: task.tailoringPayload.jobCompany ?? "",
-            });
+            }),
+            JOB_DESCRIPTION_ANALYSIS_AI_TIMEOUT_MS,
+            `${preferredAI} job description analysis timed out.`,
+          );
+        } catch (analysisError) {
+          // Don't fail the task — fall back to deterministic local parsing so
+          // tailoring can still proceed with a usable JD analysis.
+          console.warn(
+            `${preferredAI} job description analysis failed; using local fallback.`,
+            analysisError,
+          );
+          pipelineDebug.jobDescriptionAnalysisError =
+            analysisError instanceof Error ? analysisError.message : String(analysisError);
+          analyzedJobDescription = localFallbackAnalysis();
+        }
+      } else {
+        analyzedJobDescription = localFallbackAnalysis();
+      }
     }
 
     // Record JD analysis result for debug panel
