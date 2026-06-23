@@ -64,6 +64,55 @@ function extractPrimaryFontName(fontFamily: string) {
     .trim();
 }
 
+// Web fonts the editor offers that are NOT guaranteed to be installed on the
+// machine rendering the PDF (headless Chromium). They must be loaded explicitly
+// or the export silently falls back to a system default.
+const GOOGLE_FONT_SPECS: Record<string, string> = {
+  Inter: "Inter:wght@400;500;600;700",
+  Roboto: "Roboto:wght@400;500;700",
+  Lato: "Lato:wght@400;700",
+  "Open Sans": "Open+Sans:wght@400;600;700",
+  "Source Sans 3": "Source+Sans+3:wght@400;600;700",
+};
+
+/**
+ * Builds the <link> tags that load the selected web font so the PDF/headless
+ * render uses the same font as the on-screen editor. System fonts (Arial,
+ * Georgia, Calibri, …) need no link and return an empty string.
+ */
+function buildResumeFontHeadLinks(fontFamily: string) {
+  const spec = GOOGLE_FONT_SPECS[extractPrimaryFontName(fontFamily)];
+
+  if (!spec) {
+    return "";
+  }
+
+  return [
+    '<link rel="preconnect" href="https://fonts.googleapis.com" />',
+    '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />',
+    `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=${spec}&display=swap" />`,
+  ].join("\n  ");
+}
+
+/**
+ * Blocks until the page's web fonts have finished loading, so page.pdf() never
+ * captures a frame that is still rendering in a fallback font.
+ */
+async function waitForDocumentFonts(page: {
+  evaluate: (fn: () => unknown) => Promise<unknown>;
+}) {
+  try {
+    await page.evaluate(async () => {
+      const fonts = (document as unknown as { fonts?: { ready?: Promise<unknown> } }).fonts;
+      if (fonts?.ready) {
+        await fonts.ready;
+      }
+    });
+  } catch {
+    // Font readiness is best-effort; never block the export on it.
+  }
+}
+
 function decodeHtmlEntities(value: string) {
   const namedEntities: Record<string, string> = {
     amp: "&",
@@ -614,6 +663,7 @@ export function wrapEditorHtmlDocument(
 <html>
 <head>
   <meta charset="utf-8" />
+  ${buildResumeFontHeadLinks(style.fontFamily)}
   <style>
     :root { ${cssVariables} }
     @page {
@@ -671,6 +721,7 @@ export async function generateRawHtmlPdf(fullHtml: string) {
     browser = await puppeteer.launch(await getChromiumLaunchOptions());
     const page = await browser.newPage();
     await page.setContent(fullHtml, { waitUntil: "networkidle0" });
+    await waitForDocumentFonts(page);
     // Use the @page CSS rule from the template for page dimensions.
     // Do NOT set explicit width/height here — that would constrain the output
     // to a single page and clip any overflow content.
@@ -702,6 +753,7 @@ export async function generateEditorPdf(
     await page.setContent(wrapEditorHtmlDocument(html, style), {
       waitUntil: "networkidle0",
     });
+    await waitForDocumentFonts(page);
     return await page.pdf({
       format: pageSize.exportFormat,
       printBackground: true,

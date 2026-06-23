@@ -1,16 +1,19 @@
 export const RESUME_STYLE_CONFIG = {
   colors: {
-    text: "#1A202C",
-    heading: "#0F172A",
-    secondary: "#475569",
-    muted: "#64748B",
-    accent: "#1D4ED8",
-    accentLight: "#EFF6FF",
-    divider: "#1D4ED8",
-    link: "#2563EB",
-    skillText: "#1E293B",
-    nameGradientStart: "#0F172A",
-    nameGradientEnd: "#1D4ED8",
+    // Professional, US-style executive palette: near-black body text with a
+    // restrained navy accent (instead of a bright web blue) for headings,
+    // section rules, and links — reads cleaner and ATS-friendly in print.
+    text: "#1A1A1A",
+    heading: "#10243A",
+    secondary: "#3F4A57",
+    muted: "#5B6573",
+    accent: "#1F3A5F",
+    accentLight: "#EEF2F7",
+    divider: "#1F3A5F",
+    link: "#1F3A5F",
+    skillText: "#1F2937",
+    nameGradientStart: "#10243A",
+    nameGradientEnd: "#1F3A5F",
   },
   font: {
     name: { sizePt: 26, weight: 700, lineHeight: 1.05, letterSpacingPt: -0.3, marginBottomPt: 3 },

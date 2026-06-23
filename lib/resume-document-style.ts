@@ -81,11 +81,17 @@ export const RESUME_FONT_OPTIONS = [
   { label: "Garamond", value: "Garamond, Georgia, serif" },
 ];
 
+const DEFAULT_RESUME_FONT_FAMILY =
+  RESUME_FONT_OPTIONS.find((font) => font.label === "Source Sans 3")?.value ??
+  RESUME_FONT_OPTIONS[0].value;
+
 export const DEFAULT_RESUME_DOCUMENT_STYLE: ResumeDocumentStyle = {
+  // US Letter, moderate margins, and a clean professional sans that renders
+  // identically on screen and in the exported PDF.
   pageSize: "letter",
-  marginPreset: "narrow",
-  margins: RESUME_MARGIN_PRESETS.narrow.margins,
-  fontFamily: RESUME_FONT_OPTIONS[0].value,
+  marginPreset: "moderate",
+  margins: RESUME_MARGIN_PRESETS.moderate.margins,
+  fontFamily: DEFAULT_RESUME_FONT_FAMILY,
   colors: RESUME_STYLE_CONFIG.colors,
 };
 

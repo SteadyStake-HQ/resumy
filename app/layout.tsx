@@ -54,6 +54,16 @@ export default async function RootLayout({
 
   return (
     <html lang="en">
+      <head>
+        {/* Résumé document web fonts — loaded so the editor canvas, the HTML
+            viewer, and the exported PDF all render the selected font identically. */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lato:wght@400;700&family=Open+Sans:wght@400;600;700&family=Roboto:wght@400;500;700&family=Source+Sans+3:wght@400;600;700&display=swap"
+        />
+      </head>
       <body
         className={`${plusJakartaSans.variable} ${fraunces.variable} ${ibmPlexMono.variable} ${newsreader.variable} bg-background text-foreground antialiased`}
       >
