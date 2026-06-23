@@ -99,14 +99,21 @@ const TB = {
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+// Client-side fallback name only — the export route sets the authoritative
+// "Firstname_Lastname.<ext>" name via Content-Disposition. Keep this in sync.
 function getDownloadName(generation: SafeGeneration | null, format: "pdf" | "docx") {
-  const candidate = generation?.tailoredData.personalInfo.name || "Candidate";
-  const role = generation?.jobDescription?.company || generation?.jobDescription?.title || "Role";
-  const safeName = `${candidate}_${role}`
-    .replace(/[^a-z0-9]+/gi, "_")
-    .replace(/^_+|_+$/g, "")
-    .slice(0, 70);
-  return `Tailored_Resume_${safeName || "Draft"}.${format}`;
+  const parts = (generation?.tailoredData.personalInfo.name ?? "")
+    .replace(/[^\p{L}\p{N}\s'-]/gu, " ")
+    .split(/\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const stem = parts.length
+    ? [parts[0], parts.length > 1 ? parts[parts.length - 1] : ""]
+        .filter(Boolean)
+        .join("_")
+        .replace(/[^A-Za-z0-9_'-]/g, "")
+    : "";
+  return `${stem || "Resume"}.${format}`;
 }
 
 // ─── Modal utility button (header area) ───────────────────────────────────────
@@ -769,8 +776,8 @@ export function TailoredResumeEditorModal({
   const statusColor = error
     ? THEME.danger
     : generation
-      ? THEME.mint
-      : "#f4b83c";
+      ? THEME.moss
+      : "#7a5a12";
   const streamedOutlineSections = sections.filter(
     (section) => section.section !== "template",
   );
@@ -1354,44 +1361,72 @@ export function TailoredResumeEditorModal({
               }
             `}</style>
 
-            {/* ── Modal header ── */}
+            {/* ── Modal header (warm gradient, matches site hero) ── */}
             <div
-              className="flex flex-wrap items-center justify-between gap-4 px-5 py-4"
+              className="relative flex flex-wrap items-center justify-between gap-4 overflow-hidden px-6 py-4"
               style={{
-                borderBottom: `1px solid ${THEME.navySoft}`,
-                background: THEME.navy,
-                color: "#fff",
+                borderBottom: "1px solid rgba(255,255,255,0.45)",
+                background: "linear-gradient(135deg, #FFD14A, #F4B83C 50%, #F5A490)",
+                color: THEME.ink,
               }}
             >
-              <div className="min-w-0">
+              {/* Sparkle accent, echoing the page hero */}
+              <svg
+                aria-hidden="true"
+                className="pointer-events-none absolute"
+                style={{ top: 12, right: 150, opacity: 0.85 }}
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+              >
+                <path d="M12 3 L14 10 L21 12 L14 14 L12 21 L10 14 L3 12 L10 10 Z" fill="#fff" opacity="0.85" />
+              </svg>
+              <div className="relative min-w-0">
                 <div className="flex min-w-0 items-center gap-3">
                   <div
-                    className="grid h-10 w-10 shrink-0 place-items-center rounded-[8px] text-lg font-black"
-                    style={{ background: "rgba(255,255,255,0.1)", color: THEME.mint }}
+                    className="grid h-11 w-11 shrink-0 place-items-center rounded-[12px] text-lg font-black"
+                    style={{
+                      background: "rgba(255,255,255,0.35)",
+                      border: "1.5px solid rgba(255,255,255,0.6)",
+                      color: THEME.ink,
+                      backdropFilter: "blur(6px)",
+                    }}
                     aria-hidden="true"
                   >
                     T
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: "#9db8d4" }}>
+                    <p
+                      className="text-[10px] font-black uppercase tracking-[0.2em]"
+                      style={{ color: "rgba(47,42,31,0.7)", fontFamily: "var(--font-ibm-plex-mono), monospace" }}
+                    >
                       Tailored resume editor
                     </p>
-                    <DialogTitle className="truncate text-xl font-bold tracking-normal">
+                    <DialogTitle
+                      className="truncate text-2xl font-bold tracking-tight"
+                      style={{ fontFamily: "var(--font-kaisei-tokumin), serif", color: THEME.ink }}
+                    >
                       {resumeTitle}
                     </DialogTitle>
                   </div>
                 </div>
-                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 pl-[52px] text-xs font-semibold" style={{ color: "#d8e6f5" }}>
+                <div
+                  className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 pl-[56px] text-xs font-semibold"
+                  style={{ color: THEME.ink2 }}
+                >
                   {roleLabel ? <span>{roleLabel}</span> : null}
-                  <span className="inline-flex min-w-0 items-center gap-2">
+                  <span
+                    className="inline-flex min-w-0 items-center gap-2 rounded-full px-2.5 py-1"
+                    style={{ background: "rgba(255,255,255,0.4)" }}
+                  >
                     <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: statusColor }} />
-                    <span className="truncate" style={{ color: error ? "#ffc7bd" : "#d8e6f5" }}>
+                    <span className="truncate" style={{ color: error ? THEME.danger : THEME.ink2 }}>
                       {statusText}
                     </span>
                   </span>
                 </div>
               </div>
-              <div className="flex flex-wrap items-center justify-end gap-2">
+              <div className="relative flex flex-wrap items-center justify-end gap-2">
                 {generation && onOpenEditPage ? (
                   <ModalButton onClick={() => onOpenEditPage(generation.id)}>
                     Open full edit page
@@ -1406,15 +1441,24 @@ export function TailoredResumeEditorModal({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="grid h-10 w-10 place-items-center rounded-[8px] text-xl"
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] transition hover:bg-white/60"
                   style={{
-                    border: "1px solid rgba(255,255,255,0.24)",
-                    background: "rgba(255,255,255,0.1)",
-                    color: "#fff",
+                    border: "1.5px solid rgba(255,255,255,0.6)",
+                    background: "rgba(255,255,255,0.35)",
+                    color: THEME.ink,
+                    backdropFilter: "blur(6px)",
                   }}
                   aria-label="Close tailored resume editor"
                 >
-                  ×
+                  <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+                    <path
+                      d="M4 4l8 8M12 4l-8 8"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.85"
+                      strokeLinecap="round"
+                    />
+                  </svg>
                 </button>
               </div>
             </div>

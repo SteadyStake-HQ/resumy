@@ -97,10 +97,27 @@ Only after completing this analysis do you start writing.
 - **Thin-summary failure:** A summary fails if it mainly says the candidate is collaborative, accountable, communicative, or results-focused without naming concrete supported technologies, systems, or technical work.
 - **Forbidden phrases:** "passionate", "hard-working", "results-driven", "proven track record", "team player", "go-getter", "self-starter", "leveraged cutting-edge", "seamlessly", "synergy", "play a pivotal role", "wear many hats", "think outside the box", "dynamic", "motivated".
 - **Forbidden patterns:** first-person pronouns ("I", "my"), vague filler adjectives, unbacked superlatives ("best", "top", "world-class"), and passive constructions ("was responsible for").
+- **The summary must read like it was written by a thoughtful senior engineer for this exact role** — confident, specific, and concrete. Every sentence should carry information (a technology, a system, a domain, a delivery practice, or an outcome). Delete any sentence that could appear on any resume for any job.
+
+### Summary worked example (calibration — do NOT copy verbatim)
+
+**JD:** Senior Backend Engineer — Go, PostgreSQL, gRPC microservices, AWS, high-throughput payment systems.
+**Weak (rejected):** "Passionate and results-driven software engineer with a proven track record of delivering high-quality solutions. Strong team player who thrives in fast-paced environments and is eager to take on new challenges." → vague, zero technologies, forbidden phrases, no JD alignment.
+**Strong (target quality):** "Backend engineer with 6+ years building high-throughput transactional services in Go and PostgreSQL. Designs gRPC microservices and event-driven pipelines that process payment and ledger workloads at scale on AWS (ECS, SQS, RDS). Owns services end to end — schema design, observability with Prometheus and Grafana, and zero-downtime deploys through CI/CD. Strengthens reliability through load testing, structured logging, and careful rollout of breaking schema changes across dependent services." → role-anchored, names supported stack, shows scope and delivery, ATS-aligned, no filler.
 
 ---
 
 ## SKILLS TAILORING RULES
+
+**This is the highest-leverage section of the tailoring. Get it right.** The skills block is scanned by both ATS and recruiters in seconds. A great skills block contains ONLY concrete technical skills, leads with the exact technologies the JD asks for that the candidate genuinely has, and excludes everything irrelevant. Treat the skills block as a curated shortlist, not a dump of everything the candidate has ever touched.
+
+### Core skills mandate (read first — non-negotiable)
+
+1. **Technical names ONLY.** Every item must be a real, recognisable technology: a programming language, framework, library, database, cloud platform, infrastructure tool, CI/CD tool, protocol/methodology, or named AI/ML tool. If a human could not immediately recognise the item as a specific named technology, it does NOT belong in the skills block.
+2. **Never copy non-technology words or phrases from the job description.** The JD contains many words that are NOT skills — responsibilities, soft traits, business nouns, and sentence fragments ("collaborate with stakeholders", "ownership", "fast-paced", "scalable solutions", "attention to detail", "communication", "5+ years", "cross-functional", "customer-focused"). NEVER lift these into the skills block just because they appear in the JD. A skill is a tool, not a phrase from a sentence.
+3. **Relevance-first selection.** Choose skills by answering: *"Does the JD ask for this (or a close adjacent), AND does the candidate genuinely have it?"* If BOTH are true → include it, near the front. If the JD asks for it but the candidate has no evidence → omit it (never fabricate). If the candidate has it but it is irrelevant to this JD → omit it. The goal is maximum overlap between JD requirements and the candidate's real toolset.
+4. **Cut the noise.** Remove genuine candidate skills that have no bearing on the target role. A backend Go/Postgres JD does not need the candidate's old jQuery, Photoshop, or WordPress experience listed — drop them even though they are real. Quality and relevance beat completeness.
+5. **Exact JD spelling and casing.** When a skill matches a JD term, write it exactly as the JD writes it (PostgreSQL, Node.js, TypeScript, REST, CI/CD) so ATS exact-match scoring fires.
 
 ### Step 0 — Validate each input skill BEFORE classification (always first)
 
@@ -174,6 +191,31 @@ The original resume may contain garbage strings extracted by the parser (e.g., s
 - `Docker` → `DevOps & Cloud`
 - `Jest` → `Testing`
 - `Redis` → `Databases`
+
+### Skills worked example (calibration — shows selection + curation)
+
+**JD asks for:** React, TypeScript, Next.js, REST APIs, GraphQL, state management, Jest, AWS, CI/CD, Agile.
+**Candidate's real skills (from resume + bullets + projects):** JavaScript, TypeScript, React, Redux, Next.js, jQuery, HTML, CSS, Tailwind CSS, Node.js, Express.js, REST, GraphQL, PostgreSQL, MySQL, Jest, Cypress, Docker, AWS, GitHub Actions, Photoshop, WordPress, "5+ years experience", "team collaboration", "problem solving".
+
+**Correct tailored skills output:**
+```
+[
+  { "label": "Frontend", "items": ["React", "TypeScript", "Next.js", "Redux", "Tailwind CSS", "HTML", "CSS"] },
+  { "label": "APIs & Integration", "items": ["REST", "GraphQL", "Node.js", "Express.js"] },
+  { "label": "Testing", "items": ["Jest", "Cypress"] },
+  { "label": "DevOps & Cloud", "items": ["AWS", "Docker", "GitHub Actions"] },
+  { "label": "Databases", "items": ["PostgreSQL", "MySQL"] }
+]
+```
+**Why:** Frontend leads (the JD's primary domain) with React/TypeScript/Next.js first (exact JD matches). `jQuery`, `Photoshop`, and `WordPress` were dropped — real but irrelevant to a modern React role. `"5+ years experience"`, `"team collaboration"`, and `"problem solving"` were discarded — they are not technologies. `Agile` was requested by the JD but, being a process not a tool, was carried into experience bullets instead of the skills block. Each technology appears once, in the most fitting group.
+
+### Step 0.5 — JD-relevance pass (do this right after validation, before grouping)
+
+After discarding invalid items, score every remaining valid technical skill against the JD:
+- **Tier 1 — direct JD match:** the JD names this skill (or its exact synonym). Always include; place first in its group.
+- **Tier 2 — adjacent/supporting:** the JD does not name it, but it is a close adjacent (candidate used PostgreSQL, JD says "SQL") or it credibly rounds out a Tier-1 group for THIS role (React → Redux when the JD emphasises state management). Include selectively.
+- **Tier 3 — irrelevant:** a real candidate skill with no connection to the target role. **Discard it**, even though it is genuine.
+Keep Tier 1 in full, Tier 2 only where it strengthens the story, and drop Tier 3 entirely. The final block should make a reader think "this person's toolset maps directly onto what we need."
 
 ---
 
@@ -493,6 +535,10 @@ Before you return JSON, run this checklist internally. If any item fails, fix th
 - [ ] **No plural duplicates.** If you have both `Microservice` and `Microservices`, or `Code Review` and `Code Reviews` — keep only one.
 - [ ] **No catch-all groups.** No "Additional Skills", "Other", "Miscellaneous", "General", "Technical Skills", "Soft Skills". Every group name is a specific technical domain.
 - [ ] **Irrelevant domains removed.** Any group with zero items in the JD's required/preferred/ATS keywords that is not a core role responsibility → delete it.
+- [ ] **Tier-3 skills dropped.** Scan every item: is it a genuine candidate skill that has no bearing on THIS target role? If yes, remove it even though it is real.
+- [ ] **No JD words masquerading as skills.** Scan every item: did it come from a JD sentence rather than from a technology name (e.g. "cross-functional", "ownership", "scalable solutions", "stakeholder management", "fast-paced")? If it is not a real named technology, remove it.
+- [ ] **Every item is a recognisable technology.** If you cannot name the vendor, language, or project behind an item, it is not a skill — remove it.
+- [ ] **Tier-1 JD matches lead.** The exact technologies the JD requires (that the candidate has) appear first, in their groups, using the JD's spelling/casing.
 - [ ] **First group is the JD's primary domain.**
 
 ### Structural check

@@ -11,7 +11,6 @@ import {
 import { connectToDatabase } from "@/lib/db";
 import { normalizeResumeDocumentStyle } from "@/lib/resume-document-style";
 import Generation from "@/models/Generation";
-import Resume from "@/models/Resume";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -26,12 +25,30 @@ type EditorExportBody = {
   rawHtmlDocument?: boolean;
 };
 
-function slugify(value: string) {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48);
+/**
+ * Builds a clean "Firstname_Lastname" download stem from the candidate's name,
+ * e.g. "Jane A. Doe" → "Jane_Doe". Falls back to "Resume" when no usable name
+ * is present so the download always has a sensible file name.
+ */
+function buildResumeDownloadStem(fullName: string | undefined | null) {
+  const parts = (fullName ?? "")
+    .replace(/[^\p{L}\p{N}\s'-]/gu, " ")
+    .split(/\s+/)
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+
+  if (!parts.length) {
+    return "Resume";
+  }
+
+  const first = parts[0];
+  const last = parts.length > 1 ? parts[parts.length - 1] : "";
+  const stem = [first, last]
+    .filter(Boolean)
+    .join("_")
+    .replace(/[^A-Za-z0-9_'-]/g, "");
+
+  return stem || "Resume";
 }
 
 export async function POST(
@@ -82,9 +99,6 @@ export async function POST(
         (await buildEditorHtmlFromResume(generation.tailoredData));
   const renderHtml = submittedHtml ?? savedEditorHtml;
   const documentStyle = normalizeResumeDocumentStyle(body?.documentStyle);
-  const sourceResume = await Resume.findById(generation.sourceResumeId)
-    .select("fileName")
-    .lean();
 
   let outputBuffer: Uint8Array;
   try {
@@ -109,15 +123,9 @@ export async function POST(
     );
   }
 
-  const fileName = [
-    generation._id.toString(),
-    slugify(sourceResume?.fileName ?? "resume"),
-    "editor",
-    Date.now().toString(),
-  ]
-    .filter(Boolean)
-    .join("-");
-  const outputFileName = `${fileName}.${format}`;
+  const outputFileName = `${buildResumeDownloadStem(
+    generation.tailoredData?.personalInfo?.name,
+  )}.${format}`;
 
   await Generation.findByIdAndUpdate(
     generation._id,

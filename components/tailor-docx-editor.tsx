@@ -66,6 +66,23 @@ function clampZoom(value: number) {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+// Client-side fallback name only — the export route sets the authoritative
+// "Firstname_Lastname.<ext>" name via Content-Disposition. Keep this in sync.
+function getDownloadName(generation: SafeGeneration, format: "pdf" | "docx") {
+  const parts = (generation.tailoredData.personalInfo.name ?? "")
+    .replace(/[^\p{L}\p{N}\s'-]/gu, " ")
+    .split(/\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const stem = parts.length
+    ? [parts[0], parts.length > 1 ? parts[parts.length - 1] : ""]
+        .filter(Boolean)
+        .join("_")
+        .replace(/[^A-Za-z0-9_'-]/g, "")
+    : "";
+  return `${stem || "Resume"}.${format}`;
+}
+
 function splitEditorSections(html: string) {
   const sectionPattern =
     /<section data-tailor-section="[^"]+">[\s\S]*?<\/section>/g;
@@ -538,7 +555,7 @@ export function TailorDocxEditor({
       DEFAULT_RESUME_DOCUMENT_STYLE,
   );
   const [zoom, setZoom] = useState(100);
-  const [draftMode, setDraftMode] = useState(false);
+  const [activeSection, setActiveSection] = useState<string | null>(null);
 
   const splitHtml = useMemo(
     () => splitEditorSections(initialHtml),
@@ -577,6 +594,37 @@ export function TailorDocxEditor({
   }));
 
   const isExporting = exportingFormat !== null;
+
+  // Outline entries mirror the modal's section navigation so both editors expose
+  // the same document map. Derived from the tailored data rather than the live
+  // HTML so the list is stable while the user edits.
+  const outlineSections = [
+    { section: "profile" },
+    ...(generation.tailoredData.summary ? [{ section: "summary" }] : []),
+    ...(generation.tailoredData.skills.length ? [{ section: "skills" }] : []),
+    ...(generation.tailoredData.experience.length ? [{ section: "experience" }] : []),
+    ...(generation.tailoredData.education.length ? [{ section: "education" }] : []),
+  ];
+
+  // Scroll the CKEditor shell to a named resume section.
+  function scrollToSection(sectionKey: string) {
+    const shell = editorShellRef.current;
+    if (!shell) return;
+
+    setActiveSection(sectionKey);
+
+    const editable = shell.querySelector<HTMLElement>(".ck-editor__editable");
+    const target = editable?.querySelector<HTMLElement>(
+      `[data-tailor-section="${sectionKey}"]`,
+    );
+    if (!target) return;
+
+    const shellRect = shell.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    const nextScrollTop = shell.scrollTop + (targetRect.top - shellRect.top) - 56;
+
+    shell.scrollTo({ top: nextScrollTop, behavior: "smooth" });
+  }
 
   function applyAutoPageBreaks() {
     if (!isEditorReady) return;
@@ -831,7 +879,7 @@ export function TailorDocxEditor({
       );
       await downloadFileResponse(
         response,
-        `tailored-resume-${generation.id}.${format}`,
+        getDownloadName(generation, format),
         "We couldn't export the edited resume.",
       );
 
@@ -1563,15 +1611,6 @@ export function TailorDocxEditor({
             <div className="tb-divider" />
             <button
               type="button"
-              className={`tb-toggle${draftMode ? " is-on" : ""}`}
-              onClick={() => setDraftMode((d) => !d)}
-            >
-              <span className="tb-toggle-dot" />
-              HTML Draft
-            </button>
-            <div className="tb-divider" />
-            <button
-              type="button"
               className="tb-ghost-btn"
               onClick={() => void saveEditorHtml()}
               disabled={!isDirty || isSaving || isExporting}
@@ -1603,11 +1642,13 @@ export function TailorDocxEditor({
           </div>
         </div>
 
+        {/* ── Editor grid: canvas + outline ── */}
+        <div className="grid xl:grid-cols-[minmax(0,1fr)_240px]">
         {/* ── CKEditor shell ── */}
         <div
           ref={editorShellRef}
           className="tailor-docx-editor-shell h-[700px] overflow-auto"
-          style={{ "--tb-zoom": zoom / 100 } as CSSProperties}
+          style={{ borderRight: `1px solid ${THEME.ruleSoft}`, "--tb-zoom": zoom / 100 } as CSSProperties}
         >
           {ckeditor ? (
             <div className="relative">
@@ -1698,6 +1739,71 @@ export function TailorDocxEditor({
               <LoadingOrb label="Loading resume editor…" />
             </div>
           )}
+        </div>
+
+        {/* ── Section navigation (mirrors the modal outline) ── */}
+        <aside
+          className="hidden min-h-0 flex-col overflow-hidden xl:flex"
+          style={{ background: THEME.paperWarm }}
+        >
+          <div
+            className="px-4 py-3"
+            style={{ borderBottom: `1px solid ${THEME.ruleSoft}` }}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <p
+                className="text-xs font-black uppercase tracking-[0.18em]"
+                style={{ color: THEME.moss }}
+              >
+                Outline
+              </p>
+              <span className="text-xs font-bold" style={{ color: THEME.ink3 }}>
+                {outlineSections.length}
+              </span>
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto p-3">
+            <div className="space-y-1.5">
+              {outlineSections.map((section) => {
+                const isActive = activeSection === section.section;
+                return (
+                  <button
+                    key={section.section}
+                    type="button"
+                    onClick={() => scrollToSection(section.section)}
+                    className="w-full rounded-[6px] px-3 py-2.5 text-left text-sm font-semibold capitalize transition-all"
+                    style={{
+                      background: isActive ? THEME.paper : "#fff",
+                      border: isActive
+                        ? `1.5px solid ${THEME.moss}`
+                        : `1px solid ${THEME.ruleSoft}`,
+                      color: isActive ? THEME.moss : THEME.ink2,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <svg
+                      width="11"
+                      height="11"
+                      viewBox="0 0 12 12"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      style={{ flexShrink: 0, opacity: isActive ? 1 : 0.4 }}
+                    >
+                      <circle cx="6" cy="3" r="1.5" />
+                      <path d="M6 5v5M3.5 7.5l2.5 2.5 2.5-2.5" />
+                    </svg>
+                    {section.section.replace(/-/g, " ")}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </aside>
         </div>
 
       </div>

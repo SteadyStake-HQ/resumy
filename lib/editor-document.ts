@@ -64,33 +64,65 @@ function extractPrimaryFontName(fontFamily: string) {
     .trim();
 }
 
-// Web fonts the editor offers that are NOT guaranteed to be installed on the
-// machine rendering the PDF (headless Chromium). They must be loaded explicitly
-// or the export silently falls back to a system default.
-const GOOGLE_FONT_SPECS: Record<string, string> = {
-  Inter: "Inter:wght@400;500;600;700",
-  Roboto: "Roboto:wght@400;500;700",
-  Lato: "Lato:wght@400;700",
-  "Open Sans": "Open+Sans:wght@400;600;700",
-  "Source Sans 3": "Source+Sans+3:wght@400;600;700",
+// The headless Chromium that renders the PDF has almost no system fonts
+// installed, so every font the editor offers — including "system" fonts like
+// Arial, Calibri, Georgia, or Times New Roman — must be loaded as a web font or
+// the export silently falls back to a generic default (the reported bug where
+// the chosen font is ignored in the download).
+//
+// Each editor font is mapped to a Google Font that renders it faithfully. For
+// the classic office/system fonts we use Google's metric-compatible families
+// (Arimo≈Arial/Helvetica, Carlito≈Calibri, Caladea≈Cambria, Gelasio≈Georgia,
+// Tinos≈Times New Roman) so the exported glyphs match the on-screen preview.
+const FONT_EXPORT_MAP: Record<string, { family: string; spec: string }> = {
+  "Segoe UI": { family: "Inter", spec: "Inter:wght@400;500;600;700" },
+  Aptos: { family: "Inter", spec: "Inter:wght@400;500;600;700" },
+  Calibri: { family: "Carlito", spec: "Carlito:wght@400;700" },
+  Arial: { family: "Arimo", spec: "Arimo:wght@400;500;600;700" },
+  Helvetica: { family: "Arimo", spec: "Arimo:wght@400;500;600;700" },
+  Inter: { family: "Inter", spec: "Inter:wght@400;500;600;700" },
+  Roboto: { family: "Roboto", spec: "Roboto:wght@400;500;700" },
+  Lato: { family: "Lato", spec: "Lato:wght@400;700" },
+  "Open Sans": { family: "Open Sans", spec: "Open+Sans:wght@400;600;700" },
+  "Source Sans 3": { family: "Source Sans 3", spec: "Source+Sans+3:wght@400;600;700" },
+  Georgia: { family: "Gelasio", spec: "Gelasio:wght@400;500;600;700" },
+  "Times New Roman": { family: "Tinos", spec: "Tinos:wght@400;700" },
+  Cambria: { family: "Caladea", spec: "Caladea:wght@400;700" },
+  Garamond: { family: "EB Garamond", spec: "EB+Garamond:wght@400;500;600;700" },
 };
+
+function resolveExportFont(fontFamily: string) {
+  return FONT_EXPORT_MAP[extractPrimaryFontName(fontFamily)] ?? null;
+}
+
+/**
+ * Builds the export font stack so the PDF renderer actually uses the selected
+ * font. The Google-hosted family is placed first (it is the one Chromium can
+ * load), followed by the editor's original stack as a fallback.
+ */
+function buildResumeExportFontStack(fontFamily: string) {
+  const resolved = resolveExportFont(fontFamily);
+  if (!resolved) {
+    return fontFamily;
+  }
+  return `"${resolved.family}", ${fontFamily}`;
+}
 
 /**
  * Builds the <link> tags that load the selected web font so the PDF/headless
- * render uses the same font as the on-screen editor. System fonts (Arial,
- * Georgia, Calibri, …) need no link and return an empty string.
+ * render uses the same font as the on-screen editor.
  */
 function buildResumeFontHeadLinks(fontFamily: string) {
-  const spec = GOOGLE_FONT_SPECS[extractPrimaryFontName(fontFamily)];
+  const resolved = resolveExportFont(fontFamily);
 
-  if (!spec) {
+  if (!resolved) {
     return "";
   }
 
   return [
     '<link rel="preconnect" href="https://fonts.googleapis.com" />',
     '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />',
-    `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=${spec}&display=swap" />`,
+    `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=${resolved.spec}&display=swap" />`,
   ].join("\n  ");
 }
 
@@ -652,7 +684,7 @@ export function wrapEditorHtmlDocument(
   const style = normalizeResumeDocumentStyle(documentStyle);
   const vars = {
     ...getResumeVisualCssVariables(style.colors),
-    "--resume-document-font": style.fontFamily,
+    "--resume-document-font": buildResumeExportFontStack(style.fontFamily),
   };
   const cssVariables = Object.entries(vars)
     .map(([key, value]) => `${key}: ${value};`)
