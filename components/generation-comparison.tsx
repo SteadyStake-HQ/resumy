@@ -1,5 +1,6 @@
+import Link from "next/link";
 import { TailoredResumePreview } from "@/components/tailored-resume-preview";
-import { PageIntro } from "@/components/ui/page-intro";
+import { formatAIUsageCost } from "@/lib/ai-usage";
 import type { SafeGeneration } from "@/lib/generation";
 import type { ResumeComparisonSummary } from "@/lib/resume-comparison";
 
@@ -9,226 +10,146 @@ type GenerationComparisonProps = {
   comparison: ResumeComparisonSummary;
 };
 
-function SectionChecklist({
-  sections,
-}: {
-  sections: ResumeComparisonSummary["left"]["sectionCompleteness"];
-}) {
+const C = {
+  paper: "#fbf8f3",
+  paperWarm: "#f5efe6",
+  line: "#e7dece",
+  ink: "#25221f",
+  muted: "#756d63",
+  sage: "#6c8f6f",
+  sageSoft: "#dce9d8",
+  peach: "#f4a373",
+  peachSoft: "#ffe6d2",
+};
+
+function versionName(generation: SafeGeneration) {
+  return generation.jobDescription?.title || generation.sourceResume?.fileName || "Tailored resume";
+}
+
+function Metric({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      {Object.entries(sections).map(([label, ready]) => (
-        <div
-          key={label}
-          className="flex items-center justify-between rounded-2xl border border-line bg-white/72 px-4 py-3"
-        >
-          <span className="text-sm font-medium capitalize text-foreground">
-            {label}
-          </span>
-          <span
-            className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${
-              ready
-                ? "bg-emerald-100 text-emerald-700"
-                : "bg-amber-100 text-amber-700"
-            }`}
-          >
-            {ready ? "Ready" : "Needs work"}
-          </span>
-        </div>
-      ))}
+    <div style={{ padding: "12px 14px", border: `1px solid ${C.line}`, borderRadius: 12, background: "#fff" }}>
+      <p style={{ margin: 0, color: C.muted, fontSize: 9.5, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", fontFamily: "monospace" }}>{label}</p>
+      <p style={{ margin: "5px 0 0", color: C.ink, fontSize: 19, fontWeight: 750 }}>{value}</p>
     </div>
   );
 }
 
-function DifferenceList({
-  title,
-  items,
+function VersionCard({
+  generation,
+  diagnostics,
+  label,
+  accent,
 }: {
-  title: string;
-  items: string[];
+  generation: SafeGeneration;
+  diagnostics: ResumeComparisonSummary["left"];
+  label: string;
+  accent: "sage" | "peach";
 }) {
+  const color = accent === "sage" ? C.sage : C.peach;
+  const soft = accent === "sage" ? C.sageSoft : C.peachSoft;
+  const completeness = Object.entries(diagnostics.sectionCompleteness);
+
   return (
-    <section className="dream-card p-5">
-      <h3 className="text-lg font-semibold text-foreground">{title}</h3>
-      <div className="mt-4 flex flex-wrap gap-2">
-        {items.length ? (
-          items.map((item) => (
-            <span
-              key={item}
-              className="rounded-full border border-line bg-white px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted"
-            >
-              {item}
-            </span>
-          ))
-        ) : (
-          <p className="text-sm leading-7 text-muted">No standout differences here.</p>
-        )}
+    <article style={{ border: `1px solid ${C.line}`, borderRadius: 20, padding: 18, background: C.paper, boxShadow: "0 8px 24px rgba(60,40,20,.055)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 14 }}>
+        <div style={{ minWidth: 0 }}>
+          <span style={{ display: "inline-flex", padding: "4px 9px", borderRadius: 999, background: soft, color: C.ink, fontSize: 10, fontWeight: 800, letterSpacing: ".12em", textTransform: "uppercase", fontFamily: "monospace" }}>{label}</span>
+          <h2 style={{ margin: "9px 0 0", color: C.ink, fontSize: 20, lineHeight: 1.2, fontWeight: 750 }}>{versionName(generation)}</h2>
+          <p style={{ margin: "5px 0 0", color: C.muted, fontSize: 12.5 }}>
+            {generation.jobDescription?.company || "Custom role"} · {generation.aiModelUsed}
+          </p>
+        </div>
+        <div style={{ minWidth: 80, padding: "10px 12px", textAlign: "center", borderRadius: 15, background: color, color: "#fff" }}>
+          <p style={{ margin: 0, fontSize: 9, textTransform: "uppercase", letterSpacing: ".1em", fontFamily: "monospace" }}>Score</p>
+          <p style={{ margin: 0, fontSize: 29, lineHeight: 1.2, fontWeight: 800 }}>{diagnostics.score}</p>
+        </div>
+      </div>
+
+      <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 8 }}>
+        <Metric label="Skills" value={diagnostics.snapshot.skills} />
+        <Metric label="Bullets" value={diagnostics.snapshot.experienceBullets} />
+        <Metric label="Education" value={diagnostics.snapshot.educationEntries} />
+      </div>
+
+      <div style={{ marginTop: 14, display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {completeness.map(([section, ready]) => (
+          <span key={section} style={{ padding: "5px 8px", borderRadius: 999, background: ready ? C.sageSoft : C.peachSoft, color: ready ? "#4f7152" : "#8d5b31", fontSize: 10.5, fontWeight: 650, textTransform: "capitalize" }}>
+            {ready ? "✓" : "○"} {section}
+          </span>
+        ))}
+      </div>
+
+      <div style={{ marginTop: 15, paddingTop: 13, borderTop: `1px solid ${C.line}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, color: C.muted, fontSize: 11, fontFamily: "monospace" }}>
+        <span>{generation.aiUsage ? `${generation.aiUsage.totalTokens.toLocaleString()} tokens · ${formatAIUsageCost(generation.aiUsage.estimatedCostUsd)}` : "Usage unavailable"}</span>
+        <Link href={`/tailor/editor/${generation.id}`} style={{ color: C.ink, fontWeight: 700, textDecoration: "none" }}>Open editor →</Link>
+      </div>
+    </article>
+  );
+}
+
+function DifferenceCard({ title, items, tone }: { title: string; items: string[]; tone: "sage" | "peach" }) {
+  return (
+    <section style={{ border: `1px solid ${C.line}`, borderRadius: 16, padding: 16, background: "rgba(255,255,255,.72)" }}>
+      <h3 style={{ margin: 0, color: C.ink, fontSize: 13, fontWeight: 750 }}>{title}</h3>
+      <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 6 }}>
+        {items.length ? items.map((item) => (
+          <span key={item} style={{ padding: "6px 9px", borderRadius: 999, background: tone === "sage" ? C.sageSoft : C.peachSoft, color: C.ink, fontSize: 10.5, fontWeight: 600 }}>{item}</span>
+        )) : <span style={{ color: C.muted, fontSize: 12 }}>No unique items in this section.</span>}
       </div>
     </section>
   );
 }
 
-export function GenerationComparison({
-  leftGeneration,
-  rightGeneration,
-  comparison,
-}: GenerationComparisonProps) {
+export function GenerationComparison({ leftGeneration, rightGeneration, comparison }: GenerationComparisonProps) {
+  const scoreDelta = comparison.left.score - comparison.right.score;
+
   return (
-    <div className="space-y-8">
-      <PageIntro
-        eyebrow="Compare"
-        title="Read two tailored generations side by side"
-        description="Use the heuristic score, section coverage, and content differences below to decide which version tells the stronger story for the role."
-        badge="Versions"
-        aside={
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="soft-stat">
-              <p className="eyebrow !text-[0.58rem] !tracking-[0.22em]">Version A</p>
-              <p className="mt-3 text-sm font-semibold text-foreground">
-                {leftGeneration.sourceResume?.fileName ?? "Tailored resume"}
-              </p>
-            </div>
-            <div className="soft-stat">
-              <p className="eyebrow !text-[0.58rem] !tracking-[0.22em]">Version B</p>
-              <p className="mt-3 text-sm font-semibold text-foreground">
-                {rightGeneration.sourceResume?.fileName ?? "Tailored resume"}
-              </p>
-            </div>
-          </div>
-        }
-      />
-
-      <section className="surface-card rounded-[2.2rem] p-6 sm:p-8">
-        <div className="grid gap-6 xl:grid-cols-2">
-          {[
-            {
-              generation: leftGeneration,
-              diagnostics: comparison.left,
-              label: "Version A",
-            },
-            {
-              generation: rightGeneration,
-              diagnostics: comparison.right,
-              label: "Version B",
-            },
-          ].map(({ generation, diagnostics, label }) => (
-            <section
-              key={generation.id}
-              className="dream-card p-5"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.24em] text-muted">
-                    {label}
-                  </p>
-                  <h2 className="mt-2 text-2xl font-semibold text-foreground">
-                    {generation.sourceResume?.fileName ?? "Tailored resume"}
-                  </h2>
-                  <p className="mt-2 text-sm text-muted">
-                    {generation.jobDescription?.title || "Custom job description"}
-                    {generation.jobDescription?.company
-                      ? ` • ${generation.jobDescription.company}`
-                      : ""}
-                  </p>
-                </div>
-
-                <div className="rounded-[1.4rem] bg-[linear-gradient(145deg,#263552,#4c5b82)] px-5 py-4 text-white">
-                  <p className="text-xs uppercase tracking-[0.22em] text-white/60">
-                    Heuristic score
-                  </p>
-                  <p className="mt-2 text-4xl font-semibold">{diagnostics.score}</p>
-                </div>
-              </div>
-
-              <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                <div className="rounded-2xl border border-line bg-white/72 px-4 py-3">
-                  <p className="text-xs uppercase tracking-[0.18em] text-muted">
-                    Skills
-                  </p>
-                  <p className="mt-2 text-2xl font-semibold text-foreground">
-                    {diagnostics.snapshot.skills}
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-line bg-white/72 px-4 py-3">
-                  <p className="text-xs uppercase tracking-[0.18em] text-muted">
-                    Experience bullets
-                  </p>
-                  <p className="mt-2 text-2xl font-semibold text-foreground">
-                    {diagnostics.snapshot.experienceBullets}
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-line bg-white/72 px-4 py-3">
-                  <p className="text-xs uppercase tracking-[0.18em] text-muted">
-                    Education entries
-                  </p>
-                  <p className="mt-2 text-2xl font-semibold text-foreground">
-                    {diagnostics.snapshot.educationEntries}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-5">
-                <SectionChecklist sections={diagnostics.sectionCompleteness} />
-              </div>
-            </section>
-          ))}
+    <div style={{ display: "grid", gap: 14, padding: 12 }}>
+      <section style={{ padding: "18px 20px", border: `1px solid ${C.line}`, borderRadius: 20, background: `linear-gradient(135deg,${C.paper},${C.paperWarm})`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 18, flexWrap: "wrap" }}>
+        <div>
+          <p style={{ margin: 0, color: C.peach, fontSize: 10, fontWeight: 800, letterSpacing: ".14em", textTransform: "uppercase", fontFamily: "monospace" }}>Side-by-side review</p>
+          <h1 style={{ margin: "6px 0 0", color: C.ink, fontSize: 24, fontWeight: 780, fontFamily: "var(--font-kaisei-tokumin), serif" }}>Two stories. One clearer choice.</h1>
+          <p style={{ margin: "5px 0 0", color: C.muted, fontSize: 13 }}>Compare structure, role alignment, and content—not just the score.</p>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+          <span style={{ padding: "7px 11px", borderRadius: 999, background: scoreDelta === 0 ? C.paperWarm : C.sageSoft, color: C.ink, fontSize: 11.5, fontWeight: 700 }}>
+            {scoreDelta === 0 ? "Scores are tied" : `${scoreDelta > 0 ? "A" : "B"} leads by ${Math.abs(scoreDelta)} points`}
+          </span>
+          <Link href="/history" style={{ padding: "7px 11px", border: `1px solid ${C.line}`, borderRadius: 999, color: C.ink, background: "#fff", fontSize: 11.5, fontWeight: 700, textDecoration: "none" }}>Change selection</Link>
         </div>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-2">
-        <DifferenceList
-          title="Skills only in Version A"
-          items={comparison.skillsOnlyInLeft}
-        />
-        <DifferenceList
-          title="Skills only in Version B"
-          items={comparison.skillsOnlyInRight}
-        />
-        <DifferenceList
-          title="Roles only in Version A"
-          items={comparison.rolesOnlyInLeft}
-        />
-        <DifferenceList
-          title="Roles only in Version B"
-          items={comparison.rolesOnlyInRight}
-        />
+      <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", gap: 12 }}>
+        <VersionCard generation={leftGeneration} diagnostics={comparison.left} label="Version A" accent="sage" />
+        <VersionCard generation={rightGeneration} diagnostics={comparison.right} label="Version B" accent="peach" />
       </section>
 
-      <section className="surface-card rounded-[2rem] p-6 sm:p-8">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+      <section style={{ border: `1px solid ${C.line}`, borderRadius: 20, padding: 18, background: C.paper }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 12 }}>
           <div>
-            <h2 className="text-2xl font-semibold text-foreground">
-              Structural observations
-            </h2>
-            <p className="mt-2 text-sm leading-7 text-muted">
-              Summary changed: {comparison.summaryChanged ? "yes" : "no"}.
-            </p>
+            <p style={{ margin: 0, color: C.muted, fontSize: 10, fontWeight: 800, letterSpacing: ".12em", textTransform: "uppercase", fontFamily: "monospace" }}>Content delta</p>
+            <h2 style={{ margin: "5px 0 0", color: C.ink, fontSize: 19, fontWeight: 750 }}>What each version emphasizes</h2>
           </div>
+          <span style={{ padding: "5px 9px", borderRadius: 999, background: comparison.summaryChanged ? C.sageSoft : C.paperWarm, color: C.ink, fontSize: 10.5, fontWeight: 700 }}>Summary {comparison.summaryChanged ? "changed" : "unchanged"}</span>
         </div>
-
-        <div className="mt-6 grid gap-6 xl:grid-cols-2">
-          <DifferenceList
-            title="Education only in Version A"
-            items={comparison.educationOnlyInLeft}
-          />
-          <DifferenceList
-            title="Education only in Version B"
-            items={comparison.educationOnlyInRight}
-          />
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(230px,1fr))", gap: 9 }}>
+          <DifferenceCard title="Skills only in A" items={comparison.skillsOnlyInLeft} tone="sage" />
+          <DifferenceCard title="Skills only in B" items={comparison.skillsOnlyInRight} tone="peach" />
+          <DifferenceCard title="Roles only in A" items={comparison.rolesOnlyInLeft} tone="sage" />
+          <DifferenceCard title="Roles only in B" items={comparison.rolesOnlyInRight} tone="peach" />
+          <DifferenceCard title="Education only in A" items={comparison.educationOnlyInLeft} tone="sage" />
+          <DifferenceCard title="Education only in B" items={comparison.educationOnlyInRight} tone="peach" />
         </div>
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <TailoredResumePreview
-          data={leftGeneration.tailoredData}
-          title="Version A details"
-          subtitle="Read the full structured content for the first generation."
-        />
-        <TailoredResumePreview
-          data={rightGeneration.tailoredData}
-          title="Version B details"
-          subtitle="Read the full structured content for the second generation."
-        />
-      </div>
+      <details style={{ border: `1px solid ${C.line}`, borderRadius: 20, background: C.paper, overflow: "hidden" }}>
+        <summary style={{ padding: "16px 18px", cursor: "pointer", color: C.ink, fontSize: 14, fontWeight: 750 }}>Inspect full resume content</summary>
+        <div style={{ padding: "0 14px 14px", display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", gap: 12 }}>
+          <TailoredResumePreview data={leftGeneration.tailoredData} title="Version A details" subtitle="Full structured content for the first generation." />
+          <TailoredResumePreview data={rightGeneration.tailoredData} title="Version B details" subtitle="Full structured content for the second generation." />
+        </div>
+      </details>
     </div>
   );
 }

@@ -10,6 +10,7 @@ import {
 } from "@/lib/location-display";
 import { PROFILE_THEME as PROF } from "@/lib/profile-theme";
 import type { SafeResume } from "@/lib/resume";
+import { formatAIUsageCost } from "@/lib/ai-usage";
 
 type AnalysisReportModalProps = {
   resume: SafeResume | null;
@@ -600,6 +601,28 @@ export function AnalysisReportModal({
               >
                 Uploaded {formattedDate}
               </div>
+              {resume.aiUsage ? (
+                <div
+                  style={{
+                    display: "inline-flex",
+                    gap: 8,
+                    marginTop: 9,
+                    padding: "5px 9px",
+                    borderRadius: 999,
+                    background: PROF.actionBg,
+                    border: `1px solid ${PROF.actionEdge}`,
+                    color: PROF.actionInk,
+                    fontSize: 10.5,
+                    fontWeight: 700,
+                    fontFamily: 'var(--font-ibm-plex-mono), monospace',
+                  }}
+                  title={`${resume.aiUsage.inputTokens.toLocaleString()} input + ${resume.aiUsage.outputTokens.toLocaleString()} output tokens across ${resume.aiUsage.calls} AI call${resume.aiUsage.calls === 1 ? "" : "s"}`}
+                >
+                  <span>{resume.aiUsage.totalTokens.toLocaleString()} tokens</span>
+                  <span>·</span>
+                  <span>{formatAIUsageCost(resume.aiUsage.estimatedCostUsd)} estimated</span>
+                </div>
+              ) : null}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
               <SectionActionButton

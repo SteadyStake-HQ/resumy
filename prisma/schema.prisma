@@ -46,6 +46,7 @@ model Resume {
   parsedData     Json
   analysisReport Json
   extractionMeta Json?
+  aiUsage        Json?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -86,6 +87,7 @@ model Generation {
   designTemplateId      String?
   customization         Json?
   generatedFiles        Json
+  aiUsage               Json?
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 

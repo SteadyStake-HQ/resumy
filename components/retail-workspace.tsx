@@ -20,6 +20,7 @@ import {
 import { buildBinaryUploadHeaders } from "@/lib/file-upload";
 import type { SafeBackgroundTask } from "@/lib/background-task";
 import type { SafeGeneration } from "@/lib/generation";
+import { formatAIUsageCost } from "@/lib/ai-usage";
 import type { SafeJobDescription } from "@/lib/job-description";
 import { hasPremiumAccess } from "@/lib/membership";
 import type { ResumeSummary } from "@/lib/resume";
@@ -1434,6 +1435,9 @@ export function RetailWorkspace({
                   <span className="font-bold">Tailoring complete.</span>
                   <span style={{ color: TAILOR_THEME.ink3, marginLeft: 6 }}>
                     Model: {generatedGeneration.aiModelUsed}
+                    {generatedGeneration.aiUsage
+                      ? ` · ${generatedGeneration.aiUsage.totalTokens.toLocaleString()} tokens · ${formatAIUsageCost(generatedGeneration.aiUsage.estimatedCostUsd)}`
+                      : ""}
                   </span>
                 </div>
               </div>

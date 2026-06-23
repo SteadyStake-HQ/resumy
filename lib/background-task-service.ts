@@ -9,6 +9,7 @@ import {
   validateTailoredResumeQuality,
 } from "@/lib/aiService";
 import { normalizeAIProvider, type AIProvider } from "@/lib/ai-provider";
+import { createAIUsageAccumulator, runWithAIUsage } from "@/lib/ai-usage-tracker";
 import {
   toSafeBackgroundTask,
 } from "@/lib/background-task";
@@ -1242,6 +1243,7 @@ export async function processResumeAnalysisTask(
   taskId: string,
   claimedProcessingToken?: string,
 ) {
+  const aiUsage = createAIUsageAccumulator();
   const processingStartedAt = Date.now();
   console.info("[resume-processing] started", {
     taskId,
@@ -1409,7 +1411,7 @@ export async function processResumeAnalysisTask(
       // resume is structured well within the background worker's acknowledgement
       // window. For OpenAI the call streams and aggregates token deltas (with a
       // non-streaming fallback) to keep latency low.
-      parsedData = await withTimeout(
+      parsedData = await runWithAIUsage(aiUsage, () => withTimeout(
         parseResumeWithAI(
           rawText,
           preferredAI,
@@ -1436,7 +1438,7 @@ export async function processResumeAnalysisTask(
         ),
         getResumeExtractionTimeoutMs(preferredAI),
         `${preferredAI} resume extraction timed out.`,
-      );
+      ));
       extractionMeta = createAIOnlyResumeExtractionMeta();
 
       const parseConfidence = assessResumeParseConfidence(parsedData);
@@ -1587,7 +1589,7 @@ export async function processResumeAnalysisTask(
     let analysisReport;
 
     try {
-      analysisReport = await withTimeout(
+      analysisReport = await runWithAIUsage(aiUsage, () => withTimeout(
         analyzeResumeWithAI(
           parsedData,
           rawText,
@@ -1597,7 +1599,7 @@ export async function processResumeAnalysisTask(
         ),
         RESUME_ANALYSIS_AI_TIMEOUT_MS,
         `${preferredAI} resume analysis timed out.`,
-      );
+      ));
     } catch (error) {
       console.warn(`${preferredAI} resume analysis failed.`, error);
       throw error instanceof Error
@@ -1621,6 +1623,7 @@ export async function processResumeAnalysisTask(
               parsedData,
               analysisReport,
               extractionMeta,
+              aiUsage,
             },
             {
               returnDocument: "after",
@@ -1639,6 +1642,7 @@ export async function processResumeAnalysisTask(
         parsedData,
         analysisReport,
         extractionMeta,
+        aiUsage,
       }));
 
     if (inferredCountry) {
@@ -2001,6 +2005,7 @@ export async function processResumeTailoringTask(taskId: string) {
   // Accumulated debug data for the tailoring pipeline — written to DB in one
   // shot at the validation step so every panel in the debug UI is populated.
   const pipelineDebug: Record<string, unknown> = {};
+  const aiUsage = createAIUsageAccumulator();
 
   try {
     // ── Step 1: Load resume and user settings ─────────────────────────────────
@@ -2053,14 +2058,14 @@ export async function processResumeTailoringTask(taskId: string) {
           // Guard the inline analysis with a timeout so a hung/slow provider
           // can't freeze the whole pipeline at the "Analyzing job description"
           // stage (previously this awaited with no timeout or fallback).
-          analyzedJobDescription = await withTimeout(
+          analyzedJobDescription = await runWithAIUsage(aiUsage, () => withTimeout(
             analyzeJobDescriptionWithAI(jobDescriptionContent, preferredAI, {
               geminiRouterIndex,
               huggingFaceRouterIndex,
             }),
             JOB_DESCRIPTION_ANALYSIS_AI_TIMEOUT_MS,
             `${preferredAI} job description analysis timed out.`,
-          );
+          ));
         } catch (analysisError) {
           // Don't fail the task — fall back to deterministic local parsing so
           // tailoring can still proceed with a usable JD analysis.
@@ -2102,7 +2107,7 @@ export async function processResumeTailoringTask(taskId: string) {
     let aiModelUsed: string = preferredAI;
 
     try {
-      tailoredData = await withTimeout(
+      tailoredData = await runWithAIUsage(aiUsage, () => withTimeout(
         tailorResume(
           resume.parsedData,
           jobDescriptionContent,
@@ -2116,7 +2121,7 @@ export async function processResumeTailoringTask(taskId: string) {
         ),
         RESUME_TAILORING_AI_TIMEOUT_MS,
         `${preferredAI} tailoring timed out.`,
-      );
+      ));
       aiModelUsed = preferredAI;
     } catch (tailorError) {
       // LLM call failed entirely — use deterministic fallback so task still completes
@@ -2215,6 +2220,7 @@ export async function processResumeTailoringTask(taskId: string) {
       editorDocumentStyle: createInitialTailoredResumeDocumentStyle(),
       editorTemplateId: "base",
       aiModelUsed,
+      aiUsage,
       generatedFiles: { pdfUrl: null, docxUrl: null },
     });
 

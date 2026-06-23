@@ -31,7 +31,6 @@ const ASSISTANT_PATHS = new Set([
   "/profile",
   "/retail",
   "/history",
-  "/design",
   "/compare",
   "/membership",
 ]);

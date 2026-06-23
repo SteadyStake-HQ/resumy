@@ -8,6 +8,7 @@ import {
   type GeminiQuotaInfo,
   validateGeminiApiKey,
 } from "@/lib/gemini-validator";
+import { recordAIUsage } from "@/lib/ai-usage-tracker";
 
 const GEMINI_MODEL = "gemini-2.5-flash";
 const NUMBERED_GEMINI_KEY_PATTERN = /^GEMINI_API_KEY_(\d+)$/;
@@ -331,6 +332,13 @@ export async function generateGeminiTextWithFallback(
           responseMimeType: options.responseMimeType,
           responseSchema: options.responseSchema,
         },
+      });
+
+      const usage = result.response.usageMetadata;
+      recordAIUsage({
+        provider: "gemini",
+        inputTokens: usage?.promptTokenCount,
+        outputTokens: usage?.candidatesTokenCount,
       });
 
       return {

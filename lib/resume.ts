@@ -5,6 +5,7 @@ import {
   normalizePhoneValue,
 } from "@/lib/contact-info";
 import { formatResumeLocation } from "@/lib/location";
+import { normalizeAIUsage, type AIUsage } from "@/lib/ai-usage";
 
 export type ResumeProfileLink = ExtractedProfileLink;
 
@@ -84,6 +85,7 @@ export type SafeResume = {
   originalUrl: string | null;
   parsedData: ParsedResumeData;
   analysisReport: ResumeAnalysisReport;
+  aiUsage: AIUsage | null;
   createdAt: string | null;
 };
 
@@ -97,6 +99,7 @@ type ResumeLike = {
   parsedData?: unknown;
   analysisReport?: unknown;
   extractionMeta?: unknown;
+  aiUsage?: unknown;
   createdAt?: Date | string | null;
 };
 
@@ -1262,6 +1265,7 @@ export function toSafeResume(resume: ResumeLike): SafeResume {
     originalUrl: resume.originalUrl ?? null,
     parsedData: normalizeParsedResumeData(resume.parsedData),
     analysisReport: normalizeAnalysisReport(resume.analysisReport),
+    aiUsage: normalizeAIUsage(resume.aiUsage),
     createdAt: resume.createdAt ? new Date(resume.createdAt).toISOString() : null,
   };
 }

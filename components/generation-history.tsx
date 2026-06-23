@@ -11,6 +11,9 @@ import {
 } from "@headlessui/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "@/components/ui/toast-provider";
+import { TailoredResumeEditorModal } from "@/components/resume-tailor/TailoredResumeEditorModal";
+import { buildClientEditorHtmlFromResume } from "@/lib/client-editor-html";
+import { formatAIUsageCost } from "@/lib/ai-usage";
 import type { SafeGeneration } from "@/lib/generation";
 import type { SafeJobDescription } from "@/lib/job-description";
 import { hasPremiumAccess } from "@/lib/membership";
@@ -1104,6 +1107,8 @@ export function GenerationHistory({
     status: "idle",
   });
   const jdCacheRef = useRef<Record<string, SafeJobDescription>>({});
+  const [editorGeneration, setEditorGeneration] = useState<SafeGeneration | null>(null);
+  const [editorHtml, setEditorHtml] = useState("");
 
   const hasPremium = hasPremiumAccess(membershipTier);
   const compareUrl = useMemo(
@@ -1111,6 +1116,13 @@ export function GenerationHistory({
     [selectedIds],
   );
   const compareReady = selectedIds.length === 2;
+
+  const openEditor = (generation: SafeGeneration) => {
+    setEditorGeneration(generation);
+    setEditorHtml(
+      generation.editorHtml || buildClientEditorHtmlFromResume(generation.tailoredData),
+    );
+  };
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1673,6 +1685,16 @@ export function GenerationHistory({
                       ? dateFormatter.format(new Date(generation.createdAt))
                       : "Recently generated"}
                   </span>
+                  {generation.aiUsage ? (
+                    <>
+                      <span
+                        style={{ width: 3, height: 3, borderRadius: "50%", background: T.ink3 }}
+                      />
+                      <span style={{ fontFamily: "monospace", fontVariantNumeric: "tabular-nums" }}>
+                        {generation.aiUsage.totalTokens.toLocaleString()} tokens · {formatAIUsageCost(generation.aiUsage.estimatedCostUsd)}
+                      </span>
+                    </>
+                  ) : null}
                 </div>
 
                 {/* JD section */}
@@ -1771,8 +1793,9 @@ export function GenerationHistory({
                     width: "100%",
                   }}
                 >
-                  <Link
-                    href={`/design?generationId=${generation.id}`}
+                  <button
+                    type="button"
+                    onClick={() => openEditor(generation)}
                     style={{
                       display: "inline-flex",
                       alignItems: "center",
@@ -1787,6 +1810,9 @@ export function GenerationHistory({
                       textDecoration: "none",
                       boxShadow: `0 1px 0 ${T.sage2}, 0 2px 6px rgba(108,143,111,0.25)`,
                       whiteSpace: "nowrap",
+                      border: "none",
+                      cursor: "pointer",
+                      fontFamily: "inherit",
                     }}
                   >
                     {isDesigned ? (
@@ -1798,7 +1824,7 @@ export function GenerationHistory({
                         <IconWand size={13} /> Customize design
                       </>
                     )}
-                  </Link>
+                  </button>
 
                   <div
                     style={{
@@ -1855,6 +1881,21 @@ export function GenerationHistory({
         open={jdModalOpen}
         state={jdModalState}
         onClose={() => setJdModalOpen(false)}
+      />
+      <TailoredResumeEditorModal
+        open={Boolean(editorGeneration)}
+        task={null}
+        generation={editorGeneration}
+        statusLabel="Tailored resume ready"
+        editorHtml={editorHtml}
+        sections={[]}
+        isStreaming={false}
+        error={null}
+        onClose={() => setEditorGeneration(null)}
+        onCancelGeneration={() => setEditorGeneration(null)}
+        onEditorHtmlChange={setEditorHtml}
+        onGenerationSaved={setEditorGeneration}
+        onOpenEditPage={(generationId) => router.push(`/tailor/editor/${generationId}`)}
       />
     </div>
   );

@@ -216,6 +216,9 @@ PROFILE RULES
 
 SUMMARY RULES
 - Rewrite the summary completely. Do not copy or lightly paraphrase the original summary.
+- Give every tailored summary a fresh, role-specific opening built around the candidate's strongest relevant evidence. Do not reuse a stock opening across resumes.
+- NEVER start the summary with "With X years...", "With X+ years...", "With over X years...", or any other experience-duration formula. Lead with the target professional identity, a technical specialty, a product/system achievement, or a distinctive supported strength instead.
+- The first alphabetical character of the summary must be uppercase.
 - COMPANY NAME PROHIBITION: Do NOT mention any specific company, employer, or organization by name anywhere in the summary. The summary is a positioning statement for the TARGET role — company names belong only in the work experience section. "Having worked at Acme Corp..." or "After 3 years at Google..." in the summary is a critical error. Remove all employer references.
 - Length: 4-5 compact but substantial sentences, roughly 75-110 words when the resume has enough source detail.
 - Make the summary technology-focused and evidence-rich. It must read like a senior technical positioning statement, not a generic career overview.
@@ -536,6 +539,7 @@ NON-NEGOTIABLE PRESERVATION RULES
 
 NON-NEGOTIABLE TAILORING RULES
 - Rewrite summary into 4-5 new, technically rich sentences targeted to the job description. It must be meaningfully different from the original summary.
+- Use a fresh, job-specific opening every time. Never begin with "With X years", "With X+ years", "With over X years", or another years-of-experience template. Begin with an uppercase letter and lead with professional identity, technical specialty, or supported impact.
 - The summary must include target role framing, 5-8 natural JD keywords, supported technologies from the resume, architecture/system context, delivery strengths, and outcome-oriented positioning.
 - Avoid thin summaries that only mention collaboration, ownership, communication, or generic delivery style without concrete technical substance.
 - Reorder skills and skill groups by JD priority order: required skills first, then ATS/priority keywords, above-the-fold priorities, technical skills, preferred skills, then secondary strengths.

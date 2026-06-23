@@ -1,4 +1,5 @@
 import "server-only";
+import { recordAIUsage } from "@/lib/ai-usage-tracker";
 
 const HUGGINGFACE_BASE_URL = "https://router.huggingface.co/v1";
 const HUGGINGFACE_CHAT_COMPLETIONS_URL = `${HUGGINGFACE_BASE_URL}/chat/completions`;
@@ -337,6 +338,11 @@ async function postHuggingFaceChat(
         message?: string;
         error?: string;
         reason?: string;
+        usage?: {
+          prompt_tokens?: number;
+          completion_tokens?: number;
+          total_tokens?: number;
+        };
       }
     | null;
 
@@ -358,6 +364,12 @@ async function postHuggingFaceChat(
   if (!responseText) {
     throw new Error("Hugging Face did not return any text.");
   }
+
+  recordAIUsage({
+    provider: "huggingface",
+    inputTokens: payload?.usage?.prompt_tokens,
+    outputTokens: payload?.usage?.completion_tokens,
+  });
 
   return responseText;
 }

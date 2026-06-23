@@ -25,6 +25,7 @@ import { buildBinaryUploadHeaders } from "@/lib/file-upload";
 import type { SafeBackgroundTask } from "@/lib/background-task";
 import { PROFILE_THEME as PROF } from "@/lib/profile-theme";
 import type { SafeResume } from "@/lib/resume";
+import { formatAIUsageCost } from "@/lib/ai-usage";
 import {
   confirmAllResumesRemoval,
   confirmResumeRemoval,
@@ -946,6 +947,9 @@ export function ResumeManager({ initialResumes }: ResumeManagerProps) {
                     {resume.createdAt
                       ? dateFormatter.format(new Date(resume.createdAt))
                       : "recently"}
+                    {resume.aiUsage
+                      ? ` · ${resume.aiUsage.totalTokens.toLocaleString()} tokens · ${formatAIUsageCost(resume.aiUsage.estimatedCostUsd)}`
+                      : ""}
                   </p>
                 </div>
 

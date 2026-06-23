@@ -10,6 +10,7 @@ import {
   type ResumeDocumentStyle,
 } from "@/lib/resume-document-style";
 import { normalizeParsedResumeData, type ParsedResumeData } from "@/lib/resume";
+import { normalizeAIUsage, type AIUsage } from "@/lib/ai-usage";
 
 type GenerationLike = {
   _id: Types.ObjectId | string;
@@ -24,6 +25,7 @@ type GenerationLike = {
   aiModelUsed?: string | null;
   customization?: unknown;
   generatedFiles?: unknown;
+  aiUsage?: unknown;
   createdAt?: Date | string | null;
 };
 
@@ -74,6 +76,7 @@ export type SafeGeneration = {
     pdfUrl: string | null;
     docxUrl: string | null;
   };
+  aiUsage: AIUsage | null;
   createdAt: string | null;
 };
 
@@ -131,6 +134,7 @@ export function toSafeGeneration(
       ? normalizeResumeCustomization(generation.customization)
       : null,
     generatedFiles: normalizeGeneratedFiles(generation.generatedFiles),
+    aiUsage: normalizeAIUsage(generation.aiUsage),
     createdAt: generation.createdAt
       ? new Date(generation.createdAt).toISOString()
       : null,

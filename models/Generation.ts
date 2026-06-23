@@ -3,6 +3,7 @@ import { createPrismaModel } from "@/lib/prisma-model";
 import { DEFAULT_AI_PROVIDER } from "@/lib/ai-provider";
 import type { ResumeDocumentStyle } from "@/lib/resume-document-style";
 import type { ParsedResumeData } from "@/lib/resume";
+import type { AIUsage } from "@/lib/ai-usage";
 
 export interface IGeneration {
   userId: Types.ObjectId | string;
@@ -32,6 +33,7 @@ export interface IGeneration {
     pdfUrl?: string | null;
     docxUrl?: string | null;
   };
+  aiUsage?: AIUsage | null;
   createdAt?: Date;
   updatedAt?: Date;
 }

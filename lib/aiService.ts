@@ -62,6 +62,7 @@ import {
   type ResumeExtractionAudit,
 } from "@/lib/resume-processing";
 import { stripSkillGroupPrefix } from "@/lib/resume-skills";
+import { recordAIUsage } from "@/lib/ai-usage-tracker";
 import {
   classifyTechnicalSkillGroup,
   isTechnicalSkill,
@@ -1807,6 +1808,11 @@ export async function callOpenAI(
           "OpenAI request timed out.",
         );
         responseText = response.output_text?.trim();
+        recordAIUsage({
+          provider: "openai",
+          inputTokens: response.usage?.input_tokens,
+          outputTokens: response.usage?.output_tokens,
+        });
       }
 
       if (!responseText) {
@@ -1840,10 +1846,13 @@ async function streamOpenAIResponseText(
     }
   }
 
-  if (!aggregated) {
-    const finalResponse = await streamHandle.finalResponse();
-    aggregated = finalResponse.output_text ?? "";
-  }
+  const finalResponse = await streamHandle.finalResponse();
+  if (!aggregated) aggregated = finalResponse.output_text ?? "";
+  recordAIUsage({
+    provider: "openai",
+    inputTokens: finalResponse.usage?.input_tokens,
+    outputTokens: finalResponse.usage?.output_tokens,
+  });
 
   return aggregated.trim();
 }
@@ -1902,13 +1911,18 @@ async function streamAnthropicMessageText(
     }
   }
 
+  const finalMessage = await streamHandle.finalMessage();
   if (!aggregated) {
-    const finalMessage = await streamHandle.finalMessage();
     aggregated = finalMessage.content
       .filter((block): block is Anthropic.TextBlock => block.type === "text")
       .map((block) => block.text)
       .join("");
   }
+  recordAIUsage({
+    provider: "anthropic",
+    inputTokens: finalMessage.usage.input_tokens,
+    outputTokens: finalMessage.usage.output_tokens,
+  });
 
   return aggregated.trim();
 }
@@ -3229,6 +3243,12 @@ function cleanTailoringString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function uppercaseFirstAlphabeticCharacter(value: string) {
+  const index = value.search(/[a-z]/i);
+  if (index < 0) return value;
+  return `${value.slice(0, index)}${value[index].toUpperCase()}${value.slice(index + 1)}`;
+}
+
 function cleanTailoringStringArray(value: unknown, limit = 200) {
   if (!Array.isArray(value)) {
     return [];
@@ -3415,7 +3435,9 @@ function convertTailoredOutputToParsedResumeData(
         cleanTailoringString(tailoredOutput.profile?.roleTitle) ||
         normalizedOriginal.personalInfo.title,
     },
-    summary: cleanTailoringString(tailoredOutput.summary) || normalizedOriginal.summary,
+    summary: uppercaseFirstAlphabeticCharacter(
+      cleanTailoringString(tailoredOutput.summary) || normalizedOriginal.summary,
+    ),
     skills: flattenTailoredSkillGroups(tailoredOutput.skills),
     experience: normalizedOriginal.experience.map((originalEntry, index) => {
       const entry =
@@ -3491,7 +3513,6 @@ export function tailorResumeFallback(
     normalizedResume.experience[0]?.title ||
     normalizedResume.personalInfo.title ||
     "professional";
-  const company = normalizedResume.experience[0]?.company;
   const kw0 = topKw[0] ?? "software engineering";
   const kw1 = topKw[1] ?? "technical delivery";
   const kw2 = topKw[2] ?? "problem solving";
@@ -3499,7 +3520,7 @@ export function tailorResumeFallback(
   const kw4 = topKw[4] ?? kw1;
 
   // Sentence 1 — identity anchor around the JD role
-  const anchor = `${roleTitle}${company ? ` with experience at ${company}` : ""}, specializing in ${kw0} and ${kw1}.`;
+  const anchor = `${roleTitle} specializing in ${kw0} and ${kw1}, with a technical focus shaped by ${kw2}.`;
 
   // Sentence 2 — reuse original summary body (first two sentences only)
   const originalSentences = normalizedResume.summary
@@ -3866,6 +3887,7 @@ function polishTailoredResumeByJobPriority(
 
   return normalizeParsedResumeData({
     ...normalized,
+    summary: uppercaseFirstAlphabeticCharacter(normalized.summary),
     skills: reorderTailoredSkillsByJobPriority(
       normalized.skills,
       jobDescription,

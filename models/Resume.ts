@@ -5,6 +5,7 @@ import type {
   ResumeExtractionMeta,
   ResumeAnalysisReport,
 } from "@/lib/resume";
+import type { AIUsage } from "@/lib/ai-usage";
 
 export interface IResume {
   userId: Types.ObjectId | string;
@@ -14,6 +15,7 @@ export interface IResume {
   parsedData: ParsedResumeData;
   analysisReport: ResumeAnalysisReport;
   extractionMeta?: ResumeExtractionMeta;
+  aiUsage?: AIUsage | null;
   createdAt?: Date;
   updatedAt?: Date;
 }

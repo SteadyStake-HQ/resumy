@@ -8,6 +8,8 @@ import {
   type AIExecutionOptions,
 } from "@/lib/aiService";
 import { normalizeAIProvider } from "@/lib/ai-provider";
+import { createAIUsageAccumulator, runWithAIUsage } from "@/lib/ai-usage-tracker";
+import { mergeAIUsage } from "@/lib/ai-usage";
 import { normalizeGeminiRouterIndex } from "@/lib/gemini-router";
 import { connectToDatabase } from "@/lib/db";
 import {
@@ -101,24 +103,25 @@ export async function POST(
     ),
   };
 
-  const refreshed = await refreshResumeSectionWithAI(
+  const operationUsage = createAIUsageAccumulator();
+  const refreshed = await runWithAIUsage(operationUsage, () => refreshResumeSectionWithAI(
     resume.parsedData,
     rawText,
     section,
     preferredAI,
     options,
-  );
+  ));
 
   let analysisReport = analyzeResumeFallback(refreshed.parsedData, rawText);
 
   try {
-    analysisReport = await analyzeResumeWithAI(
+    analysisReport = await runWithAIUsage(operationUsage, () => analyzeResumeWithAI(
       refreshed.parsedData,
       rawText,
       preferredAI,
       options,
       refreshed.extractionAudit,
-    );
+    ));
   } catch {
     // keep fallback analysis
   }
@@ -136,6 +139,7 @@ export async function POST(
   resume.parsedData = refreshed.parsedData;
   resume.analysisReport = analysisReport;
   resume.extractionMeta = nextExtractionMeta;
+  resume.aiUsage = mergeAIUsage(resume.aiUsage, operationUsage);
   await resume.save();
 
   return NextResponse.json({ resume: toSafeResume(resume) });
