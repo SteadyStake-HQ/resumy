@@ -1397,6 +1397,13 @@ function applyCommonHuggingFaceJsonFixes(text: string) {
     .replace(/\]\}\},(\s*\{"title":)/g, "]},$1");
 }
 
+// Cap on how many balanced objects we collect. Recovery only needs the
+// top-level payload candidates, so this prevents a pathological O(n²) blow-up
+// (and the subsequent per-candidate jsonrepair) on a large or truncated
+// response from synchronously freezing the event loop — which would otherwise
+// defeat every surrounding request timeout.
+const MAX_BALANCED_JSON_OBJECTS = 40;
+
 function collectBalancedJsonObjects(text: string) {
   const objects: string[] = [];
 
@@ -1408,6 +1415,7 @@ function collectBalancedJsonObjects(text: string) {
     let depth = 0;
     let inString = false;
     let escaped = false;
+    let matchedEnd = -1;
 
     for (let index = start; index < text.length; index += 1) {
       const char = text[index];
@@ -1445,9 +1453,20 @@ function collectBalancedJsonObjects(text: string) {
 
         if (depth === 0) {
           objects.push(text.slice(start, index + 1));
+          matchedEnd = index;
           break;
         }
       }
+    }
+
+    if (objects.length >= MAX_BALANCED_JSON_OBJECTS) {
+      break;
+    }
+
+    // Skip past the object we just matched instead of re-scanning every nested
+    // brace, which keeps this linear rather than quadratic.
+    if (matchedEnd >= start) {
+      start = matchedEnd;
     }
   }
 
