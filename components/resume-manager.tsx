@@ -272,6 +272,7 @@ function createOptimisticUploadTask(file: File): SafeBackgroundTask {
       },
     ],
     debugData: { clientTaskId: `optimistic-${id}` },
+    aiUsage: null,
     canDismiss: false,
     canRetry: false,
     canCancel: false,

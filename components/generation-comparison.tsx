@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { TailoredResumePreview } from "@/components/tailored-resume-preview";
 import { formatAIUsageCost } from "@/lib/ai-usage";
 import type { SafeGeneration } from "@/lib/generation";
 import type { ResumeComparisonSummary } from "@/lib/resume-comparison";
@@ -116,7 +115,9 @@ export function GenerationComparison({ leftGeneration, rightGeneration, comparis
           <span style={{ padding: "7px 11px", borderRadius: 999, background: scoreDelta === 0 ? C.paperWarm : C.sageSoft, color: C.ink, fontSize: 11.5, fontWeight: 700 }}>
             {scoreDelta === 0 ? "Scores are tied" : `${scoreDelta > 0 ? "A" : "B"} leads by ${Math.abs(scoreDelta)} points`}
           </span>
-          <Link href="/history" style={{ padding: "7px 11px", border: `1px solid ${C.line}`, borderRadius: 999, color: C.ink, background: "#fff", fontSize: 11.5, fontWeight: 700, textDecoration: "none" }}>Change selection</Link>
+          <Link href="/history" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 13px", border: `1px solid ${C.line}`, borderRadius: 999, color: C.ink, background: "#fff", fontSize: 11.5, fontWeight: 700, textDecoration: "none" }}>
+            <span aria-hidden="true">←</span> Back to history
+          </Link>
         </div>
       </section>
 
@@ -143,13 +144,6 @@ export function GenerationComparison({ leftGeneration, rightGeneration, comparis
         </div>
       </section>
 
-      <details style={{ border: `1px solid ${C.line}`, borderRadius: 20, background: C.paper, overflow: "hidden" }}>
-        <summary style={{ padding: "16px 18px", cursor: "pointer", color: C.ink, fontSize: 14, fontWeight: 750 }}>Inspect full resume content</summary>
-        <div style={{ padding: "0 14px 14px", display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", gap: 12 }}>
-          <TailoredResumePreview data={leftGeneration.tailoredData} title="Version A details" subtitle="Full structured content for the first generation." />
-          <TailoredResumePreview data={rightGeneration.tailoredData} title="Version B details" subtitle="Full structured content for the second generation." />
-        </div>
-      </details>
     </div>
   );
 }

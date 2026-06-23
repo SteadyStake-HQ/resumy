@@ -299,6 +299,7 @@ function createOptimisticTailoringTask(input: {
       },
     ],
     debugData: { clientTaskId: input.clientTaskId },
+    aiUsage: null,
     canDismiss: false,
     canRetry: false,
     canCancel: false,

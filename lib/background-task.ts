@@ -1,4 +1,5 @@
 import { Types } from "@/lib/id";
+import { normalizeAIUsage, type AIUsage } from "@/lib/ai-usage";
 
 export const TASK_TYPES = ["resume_analysis", "resume_tailoring"] as const;
 export const TASK_STATUSES = [
@@ -40,6 +41,7 @@ export type SafeBackgroundTask = {
   completedAt: string | null;
   events: BackgroundTaskEvent[];
   debugData: Record<string, unknown> | null;
+  aiUsage: AIUsage | null;
   canDismiss: boolean;
   canRetry: boolean;
   canCancel: boolean;
@@ -147,6 +149,11 @@ function toNullableId(value: unknown) {
 
 export function toSafeBackgroundTask(task: BackgroundTaskLike): SafeBackgroundTask {
   const status = normalizeStatus(task.status);
+  const debugData =
+    task.debugData && typeof task.debugData === "object" && !Array.isArray(task.debugData)
+      ? (task.debugData as Record<string, unknown>)
+      : null;
+  const aiUsage = normalizeAIUsage(debugData?.aiUsage);
 
   return {
     id: task._id.toString(),
@@ -165,10 +172,8 @@ export function toSafeBackgroundTask(task: BackgroundTaskLike): SafeBackgroundTa
     startedAt: normalizeDate(task.startedAt),
     completedAt: normalizeDate(task.completedAt),
     events: normalizeTaskEvents(task.events),
-    debugData:
-      task.debugData && typeof task.debugData === "object" && !Array.isArray(task.debugData)
-        ? (task.debugData as Record<string, unknown>)
-        : null,
+    debugData,
+    aiUsage,
     canDismiss: status === "completed" || status === "failed" || status === "canceled",
     canRetry: status === "failed",
     canCancel:

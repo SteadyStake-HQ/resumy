@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BuniMascot } from "@/components/profile/buni-mascot";
 import type { SafeBackgroundTask } from "@/lib/background-task";
+import { formatAIUsageCost } from "@/lib/ai-usage";
 import { notifyResumeVaultRefresh } from "@/lib/client-api";
 import { PROFILE_THEME as PROF } from "@/lib/profile-theme";
 import { useToast } from "@/components/ui/toast-provider";
@@ -297,6 +298,12 @@ function getTaskResultLabel(task: SafeBackgroundTask) {
     return "Resume analysis ready";
   }
   return task.stageLabel;
+}
+
+function formatTokenCount(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return "0";
+  if (value < 1000) return `${Math.round(value)}`;
+  return `${(value / 1000).toFixed(value < 10000 ? 1 : 0)}k`;
 }
 
 function isOptimisticQueueTask(task: SafeBackgroundTask) {
@@ -1234,6 +1241,52 @@ function TaskRow({
               <span>{getTaskResultLabel(task)}</span>
             </div>
           ) : null}
+
+          {task.aiUsage && task.aiUsage.totalTokens > 0 ? (
+            <div
+              style={{
+                marginTop: 8,
+                display: "flex",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: 6,
+                fontSize: 10.5,
+                fontFamily: '"JetBrains Mono", ui-monospace, monospace',
+                color: KAWAII.inkSoft,
+              }}
+            >
+              <span
+                title={`${task.aiUsage.inputTokens.toLocaleString()} in · ${task.aiUsage.outputTokens.toLocaleString()} out · ${task.aiUsage.calls} call${task.aiUsage.calls === 1 ? "" : "s"}`}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  padding: "2px 8px",
+                  borderRadius: 999,
+                  background: theme.bg,
+                  border: `1px solid ${theme.edge}`,
+                }}
+              >
+                <span style={{ opacity: 0.7 }}>⛁</span>
+                {formatTokenCount(task.aiUsage.totalTokens)} tokens
+              </span>
+              <span
+                title="Estimated cost of this run"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  padding: "2px 8px",
+                  borderRadius: 999,
+                  background: theme.bg,
+                  border: `1px solid ${theme.edge}`,
+                  color: theme.ink,
+                  fontWeight: 600,
+                }}
+              >
+                {formatAIUsageCost(task.aiUsage.estimatedCostUsd)}
+              </span>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
@@ -1430,6 +1483,46 @@ function TaskDetailsModal({
                 >
                   {task.progressPercent}%
                 </div>
+                {task.aiUsage && task.aiUsage.totalTokens > 0 ? (
+                  <>
+                    <div
+                      title={`${task.aiUsage.inputTokens.toLocaleString()} input · ${task.aiUsage.outputTokens.toLocaleString()} output · ${task.aiUsage.calls} AI call${task.aiUsage.calls === 1 ? "" : "s"}`}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "6px 12px",
+                        borderRadius: 999,
+                        background: KAWAII.surface,
+                        border: `1.5px solid ${KAWAII.line}`,
+                        color: KAWAII.ink,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        fontFamily: '"JetBrains Mono", ui-monospace, monospace',
+                      }}
+                    >
+                      <span style={{ opacity: 0.7 }}>⛁</span>
+                      {formatTokenCount(task.aiUsage.totalTokens)} tokens
+                    </div>
+                    <div
+                      title="Estimated cost of this run"
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        padding: "6px 12px",
+                        borderRadius: 999,
+                        background: KAWAII.surface,
+                        border: `1.5px solid ${KAWAII.line}`,
+                        color: KAWAII.accent,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        fontFamily: '"JetBrains Mono", ui-monospace, monospace',
+                      }}
+                    >
+                      {formatAIUsageCost(task.aiUsage.estimatedCostUsd)}
+                    </div>
+                  </>
+                ) : null}
               </div>
             </div>
 

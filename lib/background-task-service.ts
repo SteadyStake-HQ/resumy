@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Types } from "@/lib/id";
 import {
-  analyzeJobDescriptionWithAI,
   analyzeResumeWithAI,
   parseResumeWithAI,
   tailorResume,
@@ -56,31 +55,11 @@ const RESUME_EXTRACTION_AI_TIMEOUT_MS = 120 * 1000;
 const HUGGINGFACE_RESUME_EXTRACTION_AI_TIMEOUT_MS = 240 * 1000;
 const RESUME_ANALYSIS_AI_TIMEOUT_MS = 90 * 1000;
 const RESUME_TAILORING_AI_TIMEOUT_MS = 120 * 1000;
-const JOB_DESCRIPTION_ANALYSIS_AI_TIMEOUT_MS = 90 * 1000;
 // Overall wall-clock budget for the tailoring pipeline. Kept comfortably under
 // the route's `maxDuration` (300s) so that if any step hangs, the task is
 // concluded as failed in the DB *before* the platform kills the function and
 // leaves the task stuck in "running" forever.
 const RESUME_TAILORING_PIPELINE_BUDGET_MS = 255 * 1000;
-
-function buildOriginalResumeTailoringContext(resume: {
-  fileName?: string | null;
-  parsedData?: unknown;
-  analysisReport?: unknown;
-  extractionMeta?: unknown;
-  rawText?: string | null;
-}) {
-  const rawText = typeof resume.rawText === "string" ? resume.rawText.trim() : "";
-
-  return {
-    fileName: resume.fileName ?? "",
-    parsedData: resume.parsedData,
-    analysisReport: resume.analysisReport,
-    extractionMeta: resume.extractionMeta,
-    rawText: rawText.slice(0, 24000),
-    rawTextTruncated: rawText.length > 24000,
-  };
-}
 
 function createAIOnlyResumeExtractionMeta() {
   const extractionMeta = createEmptyResumeExtractionMeta();
@@ -2049,10 +2028,15 @@ export async function processResumeTailoringTask(taskId: string) {
       task.tailoringPayload.jobDescriptionContent ?? "",
     );
 
-    // ── Step 2: Load pre-computed JD analysis (or run inline if not ready) ────
-    await updateTaskStage(taskId, processingToken, "analyzing_job_description", "Analyzing job description", 25);
+    // ── Step 2: Derive lightweight JD signals locally (no AI cost) ────────────
+    // We no longer run a separate AI "analyze job description" pass — it added a
+    // full extra LLM round-trip (and its large output) for little quality gain,
+    // since the single tailoring call (Step 3) reads the raw job description
+    // directly. Instead we parse the JD deterministically here (free) and reuse
+    // any analysis that was already computed and stored when the JD was saved.
+    await updateTaskStage(taskId, processingToken, "analyzing_job_description", "Reviewing job description", 25);
 
-    let analyzedJobDescription: Awaited<ReturnType<typeof analyzeJobDescriptionWithAI>> | null = null;
+    let analyzedJobDescription: ReturnType<typeof normalizeAnalyzedJobDescription> | null = null;
 
     if (task.tailoringPayload.savedJobDescriptionId) {
       const savedJd = await JobDescription.findOne({
@@ -2062,60 +2046,24 @@ export async function processResumeTailoringTask(taskId: string) {
       analyzedJobDescription = savedJd?.analyzedJobDescription ?? null;
     }
 
-    // Fall back to inline analysis if pre-computed result isn't available yet
+    // No stored analysis → parse the JD deterministically (no tokens spent).
     if (!analyzedJobDescription) {
-      const jdWordCount = jobDescriptionContent.trim().split(/\s+/).filter(Boolean).length;
-      const localFallbackAnalysis = () =>
-        normalizeAnalyzedJobDescription(null, jobDescriptionContent, {
-          title: task.tailoringPayload.jobTitle ?? "",
-          company: task.tailoringPayload.jobCompany ?? "",
-        });
-
-      if (jdWordCount >= 30) {
-        try {
-          // Guard the inline analysis with a timeout so a hung/slow provider
-          // can't freeze the whole pipeline at the "Analyzing job description"
-          // stage (previously this awaited with no timeout or fallback).
-          analyzedJobDescription = await runWithAIUsage(aiUsage, () => withTimeout(
-            analyzeJobDescriptionWithAI(jobDescriptionContent, preferredAI, {
-              geminiRouterIndex,
-              huggingFaceRouterIndex,
-            }),
-            JOB_DESCRIPTION_ANALYSIS_AI_TIMEOUT_MS,
-            `${preferredAI} job description analysis timed out.`,
-          ));
-        } catch (analysisError) {
-          // Don't fail the task — fall back to deterministic local parsing so
-          // tailoring can still proceed with a usable JD analysis.
-          console.warn(
-            `${preferredAI} job description analysis failed; using local fallback.`,
-            analysisError,
-          );
-          pipelineDebug.jobDescriptionAnalysisError =
-            analysisError instanceof Error ? analysisError.message : String(analysisError);
-          analyzedJobDescription = localFallbackAnalysis();
-        }
-      } else {
-        analyzedJobDescription = localFallbackAnalysis();
-      }
+      analyzedJobDescription = normalizeAnalyzedJobDescription(null, jobDescriptionContent, {
+        title: task.tailoringPayload.jobTitle ?? "",
+        company: task.tailoringPayload.jobCompany ?? "",
+      });
     }
 
     // Record JD analysis result for debug panel
     pipelineDebug.jobDescriptionAnalysis = analyzedJobDescription;
 
-    const originalResumeContext = buildOriginalResumeTailoringContext(resume);
-
-    // Record resume context for debug panel (omit full rawText to keep DB size reasonable)
+    // Record the parsed (already-analysed) resume for the debug panel. This is
+    // the same compact data we send to the model — we no longer attach the raw
+    // resume text or the full analysis report to the prompt (they cost a lot of
+    // tokens for little tailoring benefit).
     pipelineDebug.originalResumeAnalysis = {
-      fileName: originalResumeContext.fileName,
-      parsedData: originalResumeContext.parsedData,
-      analysisReport: originalResumeContext.analysisReport,
-      extractionMeta: originalResumeContext.extractionMeta,
-      rawTextLength: originalResumeContext.rawText?.length ?? 0,
-      rawTextPreview: originalResumeContext.rawText
-        ? originalResumeContext.rawText.slice(0, 800)
-        : null,
-      rawTextTruncated: originalResumeContext.rawTextTruncated,
+      fileName: resume.fileName ?? "",
+      parsedData: resume.parsedData,
     };
 
     // ── Step 3: Prompt Construction + LLM Call ────────────────────────────────
@@ -2125,6 +2073,9 @@ export async function processResumeTailoringTask(taskId: string) {
     let aiModelUsed: string = preferredAI;
 
     try {
+      // Cost-effective tailoring: a single AI call receives only the
+      // already-parsed resume + the job description. The raw resume text and
+      // the full analysis report are intentionally omitted from the prompt.
       tailoredData = await runWithAIUsage(aiUsage, () => withTimeout(
         tailorResume(
           resume.parsedData,
@@ -2133,8 +2084,6 @@ export async function processResumeTailoringTask(taskId: string) {
           { geminiRouterIndex, huggingFaceRouterIndex },
           {
             analyzedJobDescription,
-            resumeAnalysisReport: resume.analysisReport,
-            originalResumeContext,
           },
         ),
         RESUME_TAILORING_AI_TIMEOUT_MS,
@@ -2165,11 +2114,19 @@ export async function processResumeTailoringTask(taskId: string) {
     );
 
     pipelineDebug.validation = validationResult;
+    pipelineDebug.aiUsage = { ...aiUsage };
 
-    // Write all accumulated debug data in a single DB update
+    // Write accumulated debug data + token usage in a single DB update. The
+    // usage snapshot is surfaced on the task card so the cost of each tailoring
+    // run is visible without opening the debug panel.
     await BackgroundTask.findOneAndUpdate(
       { _id: taskId, processingToken },
-      { $set: { "debugData.tailoringPipeline": pipelineDebug } },
+      {
+        $set: {
+          "debugData.tailoringPipeline": pipelineDebug,
+          "debugData.aiUsage": { ...aiUsage },
+        },
+      },
     );
 
     // ── Step 5: Result Storage ─────────────────────────────────────────────────
@@ -2185,18 +2142,24 @@ export async function processResumeTailoringTask(taskId: string) {
       task.tailoringPayload.jobCompany?.trim() ||
       analyzedJobDescription?.companyName?.trim() ||
       "";
-    // Prefer AI-surfaced ATS keywords + priorities over the naive extractor
-    const resolvedKeywords =
-      analyzedJobDescription
-        ? [
-            ...(analyzedJobDescription.atsKeywords ?? []),
-            ...(analyzedJobDescription.keywordPriorities ?? []),
-            ...(analyzedJobDescription.technicalSkills ?? []),
-          ]
-            .map((k) => k.trim())
-            .filter(Boolean)
-            .slice(0, 60)
-        : extractKeywordCandidates(jobDescriptionContent);
+    // Prefer any AI-surfaced keywords (present when a saved JD analysis is
+    // reused); otherwise use the locally-parsed signals, falling back to the
+    // deterministic extractor so the stored JD always has usable keywords.
+    const analyzedKeywords = analyzedJobDescription
+      ? [
+          ...(analyzedJobDescription.atsKeywords ?? []),
+          ...(analyzedJobDescription.keywordPriorities ?? []),
+          ...(analyzedJobDescription.technicalSkills ?? []),
+          ...(analyzedJobDescription.requiredSkills ?? []),
+          ...(analyzedJobDescription.keywords ?? []),
+        ]
+          .map((k) => k.trim())
+          .filter(Boolean)
+          .slice(0, 60)
+      : [];
+    const resolvedKeywords = analyzedKeywords.length
+      ? Array.from(new Set(analyzedKeywords))
+      : extractKeywordCandidates(jobDescriptionContent);
 
     // Create or reuse the job description record
     let jobDescriptionId: Types.ObjectId | null =

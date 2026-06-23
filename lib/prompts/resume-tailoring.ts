@@ -447,17 +447,13 @@ export function buildResumeTailoringPrompt(
     skills: sanitizeSkillsForTailoring(normalizeParsedResumeData(resumeData).skills),
   };
   const compactResume = JSON.stringify(sanitizedResume);
-  const originalResumeContext = context.originalResumeContext
-    ? JSON.stringify(compactOriginalResumeContextForPrompt(context.originalResumeContext))
-    : "";
-  const analyzedJd = context.analyzedJobDescription ?? parseJobDescriptionSummary(jobDescription);
-  const parsedJobDescription = JSON.stringify(analyzedJd);
-  const resumeAnalysis = context.resumeAnalysisReport
-    ? JSON.stringify(normalizeAnalysisReport(context.resumeAnalysisReport))
-    : "";
 
-  // Build the targeting brief only when we have a rich AI-analyzed JD
-  // (it has atsKeywords/aboveTheFoldPriorities that local parsing lacks).
+  // Cost-effective prompt: the model receives only the already-parsed resume
+  // and the raw job description, plus a small locally-derived targeting brief
+  // that highlights the JD's key signals. The previous full JSON dumps (parsed
+  // JD, raw resume text, analysis report) were dropped — they multiplied token
+  // cost without meaningfully improving tailoring quality, since the single
+  // tailoring call reads the job description directly.
   const targetingBrief = context.analyzedJobDescription
     ? buildTargetingBrief(context.analyzedJobDescription)
     : "";
@@ -477,15 +473,8 @@ export function buildResumeTailoringPrompt(
     "A diff check is run: if any tailored bullet shares >4 consecutive normalized words with any original bullet, it fails.",
     "=== END ANTI-COPY REQUIREMENT ===",
     "",
-    "RESUME JSON:",
+    "RESUME JSON (already parsed — tailor this content):",
     compactResume,
-    "",
-    ...(originalResumeContext
-      ? ["FULL SELECTED RESUME CONTEXT JSON:", originalResumeContext, ""]
-      : []),
-    ...(resumeAnalysis ? ["ORIGINAL RESUME ANALYSIS JSON:", resumeAnalysis, ""] : []),
-    "PARSED JOB DESCRIPTION JSON:",
-    parsedJobDescription,
     "",
     "JOB DESCRIPTION:",
     clipResumePromptText(jobDescription),
