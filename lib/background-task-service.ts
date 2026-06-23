@@ -16,7 +16,7 @@ import { inferCountryCodeFromResume } from "@/lib/countries";
 import { toSafeGeneration } from "@/lib/generation";
 import { normalizeGeminiRouterIndex } from "@/lib/gemini-router";
 import { normalizeHuggingFaceRouterIndex } from "@/lib/huggingface-router";
-import { connectToDatabase } from "@/lib/db";
+import { connectToDatabase, getDb } from "@/lib/db";
 import Generation from "@/models/Generation";
 import JobDescription from "@/models/JobDescription";
 import Resume from "@/models/Resume";
@@ -781,11 +781,37 @@ export async function listBackgroundTasksForUser(userId: string) {
     });
   }
 
-  const tasks = await BackgroundTask.find({ userId })
-    .sort({ createdAt: -1 })
-    .lean();
+  // Project only the columns the task cards/details need. The task panel polls
+  // this endpoint frequently, so we must NOT pull the heavy columns on every
+  // request: `sourceFileBuffer` (raw uploaded file bytes) and `tailoringPayload`
+  // (full job-description text) are never shown in the queue and would otherwise
+  // dominate database egress. This is a DB-level projection (unlike the model's
+  // post-fetch `.select()`), so those bytes never leave Postgres.
+  const rows = await getDb().backgroundTask.findMany({
+    where: { userId },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      type: true,
+      status: true,
+      title: true,
+      fileName: true,
+      stageKey: true,
+      stageLabel: true,
+      progressPercent: true,
+      error: true,
+      resultResumeId: true,
+      resultGenerationId: true,
+      startedAt: true,
+      completedAt: true,
+      createdAt: true,
+      updatedAt: true,
+      events: true,
+      debugData: true,
+    },
+  });
 
-  return tasks.map((task) => toSafeBackgroundTask(task));
+  return rows.map((row) => toSafeBackgroundTask({ ...row, _id: row.id }));
 }
 
 export async function clearDismissibleBackgroundTasksForUser(userId: string) {

@@ -13,7 +13,7 @@ function loadDatabaseUrl() {
 
   const value = line?.slice("DATABASE_URL=".length).trim();
   if (!value) {
-    throw new Error("DATABASE_URL is required to push the Neon schema.");
+    throw new Error("DATABASE_URL is required to push the database schema.");
   }
 
   return value;
@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS "Resume" (
   "parsedData" JSONB NOT NULL,
   "analysisReport" JSONB NOT NULL,
   "extractionMeta" JSONB,
+  "aiUsage" JSONB,
   "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now(),
   "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -108,6 +109,7 @@ CREATE TABLE IF NOT EXISTS "Generation" (
   "designTemplateId" TEXT REFERENCES "DesignTemplate"("id") ON DELETE SET NULL ON UPDATE CASCADE,
   "customization" JSONB,
   "generatedFiles" JSONB NOT NULL,
+  "aiUsage" JSONB,
   "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now(),
   "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -148,6 +150,11 @@ CREATE TABLE IF NOT EXISTS "BackgroundTaskLease" (
   "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- CREATE TABLE IF NOT EXISTS does not add newly introduced fields to tables
+-- that already exist. Keep additive schema changes explicit and idempotent.
+ALTER TABLE "Resume" ADD COLUMN IF NOT EXISTS "aiUsage" JSONB;
+ALTER TABLE "Generation" ADD COLUMN IF NOT EXISTS "aiUsage" JSONB;
+
 CREATE INDEX IF NOT EXISTS "User_membershipRequestStatus_updatedAt_idx" ON "User"("membershipRequestStatus", "updatedAt");
 CREATE INDEX IF NOT EXISTS "Resume_userId_createdAt_idx" ON "Resume"("userId", "createdAt");
 CREATE INDEX IF NOT EXISTS "JobDescription_userId_createdAt_idx" ON "JobDescription"("userId", "createdAt");
@@ -162,21 +169,28 @@ CREATE INDEX IF NOT EXISTS "BackgroundTask_type_status_idx" ON "BackgroundTask"(
 CREATE INDEX IF NOT EXISTS "BackgroundTaskLease_expiresAt_idx" ON "BackgroundTaskLease"("expiresAt");
 `;
 
+function shouldUseSsl(url) {
+  if (/sslmode=disable/i.test(url)) return false;
+  if (/sslmode=require/i.test(url) || /sslmode=verify/i.test(url)) return true;
+  return !/@(localhost|127\.0\.0\.1|\[::1\])[:/]/i.test(url);
+}
+
 async function main() {
+  const connectionString = loadDatabaseUrl();
   const pool = new Pool({
-    connectionString: loadDatabaseUrl(),
-    ssl: { rejectUnauthorized: false },
+    connectionString,
+    ssl: shouldUseSsl(connectionString) ? { rejectUnauthorized: false } : undefined,
   });
 
   try {
     await pool.query(schemaSql);
-    process.stdout.write("Neon schema is up to date.\n");
+    process.stdout.write("Database schema is up to date.\n");
   } finally {
     await pool.end();
   }
 }
 
 main().catch((error) => {
-  process.stderr.write(`Failed to push Neon schema. ${String(error)}\n`);
+  process.stderr.write(`Failed to push database schema. ${String(error)}\n`);
   process.exitCode = 1;
 });

@@ -16,7 +16,7 @@ Resume Foundry blends a whimsical visual language with a serious application wor
 
 - TypeScript
 - Tailwind CSS v4
-- Neon Postgres + Prisma
+- Supabase Postgres + Prisma
 - NextAuth credentials authentication
 - Protected profile page
 - Nickname and country management with flag display
@@ -44,10 +44,18 @@ The redesign uses shared UI shells and control classes such as `page-hero`, `dre
 Create a local env file from `.env.example` and provide:
 
 ```bash
-DATABASE_URL=postgresql://user:password@host/database?sslmode=require
+# Supabase Postgres connection string. Use the connection pooler (Supavisor)
+# for serverless/Next.js — copy it from Supabase → Project Settings → Database →
+# "Connection string" → "Transaction"/"Session" pooler, and fill in your DB password.
+# Session pooler (port 5432) — recommended (supports prepared statements):
+DATABASE_URL=postgresql://postgres.<project-ref>:<db-password>@aws-0-<region>.pooler.supabase.com:5432/postgres?sslmode=require
 NEXTAUTH_SECRET=replace-with-a-long-random-secret
 NEXTAUTH_URL=http://localhost:3000
 APP_BASE_URL=http://localhost:3000
+# Supabase API keys (only needed if you use the supabase-js client for
+# storage/realtime/auth — the app's data layer connects via DATABASE_URL above):
+SUPABASE_URL=https://<project-ref>.supabase.co
+SUPABASE_PUBLISHABLE_KEY=replace-with-your-supabase-publishable-key
 GEMINI_API_KEY=replace-with-your-gemini-api-key
 OPENAI_API_KEY=replace-with-your-openai-api-key
 # Prefer numbered tokens for router-based Hugging Face selection.
@@ -88,7 +96,7 @@ Resume uploads now queue into a persisted background task list instead of blocki
 
 The project uses a hybrid model:
 
-- Next.js owns upload APIs, Neon Postgres task state, and the internal resume-processing route.
+- Next.js owns upload APIs, Supabase Postgres task state, and the internal resume-processing route.
 - A separate Python Taskiq worker owns Redis-backed job execution.
 - A lightweight Python bridge accepts enqueue requests from Next.js and hands them to Taskiq.
 
