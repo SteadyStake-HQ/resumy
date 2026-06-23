@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS "Resume" (
   "parsedData" JSONB NOT NULL,
   "analysisReport" JSONB NOT NULL,
   "extractionMeta" JSONB,
+  "aiUsage" JSONB,
   "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now(),
   "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -108,6 +109,7 @@ CREATE TABLE IF NOT EXISTS "Generation" (
   "designTemplateId" TEXT REFERENCES "DesignTemplate"("id") ON DELETE SET NULL ON UPDATE CASCADE,
   "customization" JSONB,
   "generatedFiles" JSONB NOT NULL,
+  "aiUsage" JSONB,
   "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now(),
   "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -147,6 +149,11 @@ CREATE TABLE IF NOT EXISTS "BackgroundTaskLease" (
   "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now(),
   "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- CREATE TABLE IF NOT EXISTS does not add newly introduced fields to tables
+-- that already exist. Keep additive schema changes explicit and idempotent.
+ALTER TABLE "Resume" ADD COLUMN IF NOT EXISTS "aiUsage" JSONB;
+ALTER TABLE "Generation" ADD COLUMN IF NOT EXISTS "aiUsage" JSONB;
 
 CREATE INDEX IF NOT EXISTS "User_membershipRequestStatus_updatedAt_idx" ON "User"("membershipRequestStatus", "updatedAt");
 CREATE INDEX IF NOT EXISTS "Resume_userId_createdAt_idx" ON "Resume"("userId", "createdAt");
