@@ -86,14 +86,26 @@ const DEFAULT_RESUME_FONT_FAMILY =
   RESUME_FONT_OPTIONS[0].value;
 
 export const DEFAULT_RESUME_DOCUMENT_STYLE: ResumeDocumentStyle = {
-  // US Letter, moderate margins, and a clean professional sans that renders
-  // identically on screen and in the exported PDF.
+  // Tailored resumes start compact so a recruiter can scan more content per page.
   pageSize: "letter",
-  marginPreset: "moderate",
-  margins: RESUME_MARGIN_PRESETS.moderate.margins,
+  marginPreset: "narrow",
+  margins: RESUME_MARGIN_PRESETS.narrow.margins,
   fontFamily: DEFAULT_RESUME_FONT_FAMILY,
   colors: RESUME_STYLE_CONFIG.colors,
 };
+
+export function createInitialTailoredResumeDocumentStyle(): ResumeDocumentStyle {
+  const randomFont =
+    RESUME_FONT_OPTIONS[Math.floor(Math.random() * RESUME_FONT_OPTIONS.length)] ??
+    RESUME_FONT_OPTIONS[0];
+
+  return {
+    ...DEFAULT_RESUME_DOCUMENT_STYLE,
+    margins: { ...RESUME_MARGIN_PRESETS.narrow.margins },
+    fontFamily: randomFont.value,
+    colors: { ...DEFAULT_RESUME_DOCUMENT_STYLE.colors },
+  };
+}
 
 export const RESUME_COLOR_THEME_PRESETS = [
   {

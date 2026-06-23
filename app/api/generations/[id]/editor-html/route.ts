@@ -28,16 +28,20 @@ export async function GET(
     _id: id,
     userId: session.user.id,
   })
-    .select("editorHtml tailoredData")
+    .select("editorHtml editorTemplateId tailoredData")
     .lean();
 
   if (!generation) {
     return NextResponse.json({ error: "Generation not found." }, { status: 404 });
   }
 
-  // Return saved editor HTML if available; otherwise build fresh from tailored data.
+  const hasBaseEditorHtml =
+    Boolean(generation.editorHtml) &&
+    (!generation.editorTemplateId || generation.editorTemplateId === "base");
+
+  // Legacy template HTML is replaced by the standard editable document.
   const html =
-    generation.editorHtml ||
+    (hasBaseEditorHtml ? generation.editorHtml : null) ||
     (await buildEditorHtmlFromResume(generation.tailoredData));
 
   return NextResponse.json({ html });

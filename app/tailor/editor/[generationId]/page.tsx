@@ -6,6 +6,7 @@ import { TailorDocxEditor } from "@/components/tailor-docx-editor";
 import { authOptions } from "@/lib/auth";
 import { buildEditorHtmlFromResume } from "@/lib/editor-document";
 import { toSafeGeneration } from "@/lib/generation";
+import { Types } from "@/lib/id";
 import { connectToDatabase } from "@/lib/db";
 import Generation from "@/models/Generation";
 import JobDescription from "@/models/JobDescription";
@@ -26,7 +27,7 @@ export default async function TailorEditorPage({ params }: TailorEditorPageProps
 
   const { generationId } = await params;
 
-  if (!generationId || !/^[0-9a-fA-F]{24}$/.test(generationId)) {
+  if (!generationId || !Types.ObjectId.isValid(generationId)) {
     redirect("/retail");
   }
 
@@ -49,8 +50,12 @@ export default async function TailorEditorPage({ params }: TailorEditorPageProps
           .lean()
       : Promise.resolve(null),
   ]);
+  const hasBaseEditorHtml =
+    Boolean(generation.editorHtml) &&
+    (!generation.editorTemplateId || generation.editorTemplateId === "base");
   const initialHtml =
-    generation.editorHtml || (await buildEditorHtmlFromResume(generation.tailoredData));
+    (hasBaseEditorHtml ? generation.editorHtml : null) ||
+    (await buildEditorHtmlFromResume(generation.tailoredData));
 
   return (
     <div className="hide-app-navbar">
@@ -75,7 +80,7 @@ export default async function TailorEditorPage({ params }: TailorEditorPageProps
               : null,
           })}
           initialHtml={initialHtml}
-          hasSavedEditorHtml={Boolean(generation.editorHtml)}
+          hasSavedEditorHtml={hasBaseEditorHtml}
         />
       </PageHero>
     </div>

@@ -29,6 +29,7 @@ import {
   toSafeResume,
 } from "@/lib/resume";
 import { extractKeywordCandidates, normalizeAnalyzedJobDescription } from "@/lib/job-description";
+import { createInitialTailoredResumeDocumentStyle } from "@/lib/resume-document-style";
 import {
   assessResumeParseConfidence,
   auditResumeExtraction,
@@ -2187,6 +2188,8 @@ export async function processResumeTailoringTask(taskId: string) {
       sourceResumeId: resume._id,
       jobDescriptionId: jobDescriptionId ?? null,
       tailoredData,
+      editorDocumentStyle: createInitialTailoredResumeDocumentStyle(),
+      editorTemplateId: "base",
       aiModelUsed,
       generatedFiles: { pdfUrl: null, docxUrl: null },
     });

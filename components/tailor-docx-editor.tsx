@@ -11,18 +11,8 @@ import { createPortal } from "react-dom";
 import { LoadingOrb } from "@/components/ui/loading-orb";
 import { useToast } from "@/components/ui/toast-provider";
 import { ResumeColorThemeControls } from "@/components/resume-tailor/ResumeColorThemeControls";
-import {
-  RESUME_TEMPLATE_CATALOGUE,
-  RESUME_TEMPLATE_PICKER_STYLES,
-  ResumeTemplatePickerModal,
-  renderResumeTemplateToHtml,
-  toTemplateData,
-  wrapResumeTemplateHtmlDocument,
-  type ResumeTemplateId,
-} from "@/components/resume-templates";
 import { readApiResponse } from "@/lib/client-api";
 import { downloadFileResponse } from "@/lib/client-download";
-import { buildClientEditorHtmlFromResume } from "@/lib/client-editor-html";
 import {
   buildAutoPaginatedEditorHtml,
   relayoutEditorPageBreaks,
@@ -32,7 +22,6 @@ import {
   type EditorHandle,
   type LoadedCKEditor,
 } from "@/lib/ckeditor-client";
-import { extractResumeDataFromEditorHtml } from "@/lib/editor-html-parser";
 import type { SafeGeneration } from "@/lib/generation";
 import {
   DEFAULT_RESUME_DOCUMENT_STYLE,
@@ -44,7 +33,6 @@ import {
   type ResumeMarginPreset,
   type ResumePageSize,
 } from "@/lib/resume-document-style";
-import type { ParsedResumeData } from "@/lib/resume";
 
 type TailorDocxEditorProps = {
   generation: SafeGeneration;
@@ -88,49 +76,6 @@ function splitEditorSections(html: string) {
   return {
     templateHtml,
     sections: sections.length ? sections : [html],
-  };
-}
-
-function mergeResumeData(
-  baseResume: ParsedResumeData,
-  editedResume: ParsedResumeData,
-  options: { preserveMissingLists?: boolean } = {},
-) {
-  const preserveMissingLists = options.preserveMissingLists === true;
-
-  return {
-    ...baseResume,
-    ...editedResume,
-    personalInfo: {
-      ...baseResume.personalInfo,
-      ...editedResume.personalInfo,
-    },
-    summary: editedResume.summary || baseResume.summary,
-    skills:
-      editedResume.skills.length &&
-      (!preserveMissingLists || editedResume.skills.length >= baseResume.skills.length)
-        ? editedResume.skills
-        : baseResume.skills,
-    experience: baseResume.experience.map((baseEntry, index) => {
-      const editedEntry = editedResume.experience[index];
-      if (!editedEntry) return baseEntry;
-      const hasCompleteBulletSet =
-        editedEntry.description.length &&
-        (!preserveMissingLists ||
-          editedEntry.description.length >= baseEntry.description.length);
-
-      return {
-        ...baseEntry,
-        ...editedEntry,
-        description: hasCompleteBulletSet
-          ? editedEntry.description
-          : baseEntry.description,
-      };
-    }),
-    education: baseResume.education.map((baseEntry, index) => ({
-      ...baseEntry,
-      ...(editedResume.education[index] ?? {}),
-    })),
   };
 }
 
@@ -252,14 +197,6 @@ function TbIcon({ name, size = 14 }: { name: string; size?: number }) {
           <path d="M8 2v8" {...SV} />
           <path d="M5 7l3 3 3-3" {...SV} />
           <path d="M3 13h10" {...SV} />
-        </svg>
-      );
-    case "layout":
-      return (
-        <svg width={s} height={s} viewBox="0 0 16 16">
-          <rect x="2.5" y="3" width="4.2" height="10" rx="0.8" {...SV} />
-          <rect x="8.2" y="3" width="5.3" height="4" rx="0.8" {...SV} />
-          <rect x="8.2" y="9" width="5.3" height="4" rx="0.8" {...SV} />
         </svg>
       );
     case "autoBreak":
@@ -583,7 +520,6 @@ export function TailorDocxEditor({
   });
   const hydratedRef = useRef(false);
   const timersRef = useRef<number[]>([]);
-  const canonicalResumeRef = useRef<ParsedResumeData>(generation.tailoredData);
 
   const [ckeditor, setCkeditor] = useState<LoadedCKEditor | null>(null);
   const [html, setHtml] = useState(hasSavedEditorHtml ? initialHtml : "");
@@ -603,12 +539,6 @@ export function TailorDocxEditor({
   );
   const [zoom, setZoom] = useState(100);
   const [draftMode, setDraftMode] = useState(false);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<ResumeTemplateId | null>(
-    RESUME_TEMPLATE_CATALOGUE.some((entry) => entry.id === generation.editorTemplateId)
-      ? (generation.editorTemplateId as ResumeTemplateId)
-      : null,
-  );
-  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
 
   const splitHtml = useMemo(
     () => splitEditorSections(initialHtml),
@@ -626,9 +556,6 @@ export function TailorDocxEditor({
   const currentFontLabel =
     RESUME_FONT_OPTIONS.find((f) => f.value === documentStyle.fontFamily)
       ?.label ?? "Font";
-  const selectedTemplateLabel =
-    RESUME_TEMPLATE_CATALOGUE.find((entry) => entry.id === selectedTemplateId)
-      ?.shortLabel ?? "Templates";
 
   const pageSizeOptions: TbMenuOption[] = (
     Object.entries(RESUME_PAGE_SIZES) as [ResumePageSize, { label: string }][]
@@ -651,31 +578,6 @@ export function TailorDocxEditor({
 
   const isExporting = exportingFormat !== null;
 
-  function getCurrentResumeData() {
-    const editedResume = extractResumeDataFromEditorHtml(
-      editorRef.current?.getData() ?? html,
-      canonicalResumeRef.current,
-    );
-    const nextResume = mergeResumeData(canonicalResumeRef.current, editedResume, {
-      preserveMissingLists: Boolean(selectedTemplateId),
-    });
-    canonicalResumeRef.current = nextResume;
-    return nextResume;
-  }
-
-  async function applyEditorTemplate(templateId: ResumeTemplateId | null) {
-    const resumeData = getCurrentResumeData();
-    const nextHtml = templateId
-      ? renderResumeTemplateToHtml(templateId, toTemplateData(resumeData))
-      : buildClientEditorHtmlFromResume(resumeData);
-
-    editorRef.current?.setData?.(nextHtml);
-    setHtml(nextHtml);
-    setSelectedTemplateId(templateId);
-    setIsDirty(true);
-    setStatus(templateId ? "Template applied" : "Default template restored");
-  }
-
   function applyAutoPageBreaks() {
     if (!isEditorReady) return;
 
@@ -683,7 +585,7 @@ export function TailorDocxEditor({
     const nextHtml = buildAutoPaginatedEditorHtml(
       currentHtml,
       documentStyle,
-      `tailor-docx-editor ${selectedTemplateId ? "is-template-mode" : "is-base-template"}`,
+      "tailor-docx-editor is-base-template",
     );
 
     editorRef.current?.setData?.(nextHtml);
@@ -812,7 +714,7 @@ export function TailorDocxEditor({
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, [documentStyle, html, selectedTemplateId, zoom]);
+  }, [documentStyle, html, zoom]);
 
   // ── Stream sections in on first load ──
   useEffect(() => {
@@ -874,7 +776,7 @@ export function TailorDocxEditor({
         body: JSON.stringify({
           editorHtml: nextHtml,
           editorDocumentStyle: documentStyle,
-          editorTemplateId: selectedTemplateId ?? "base",
+          editorTemplateId: "base",
         }),
       });
       const payload = await readApiResponse<SaveResponse>(
@@ -913,8 +815,6 @@ export function TailorDocxEditor({
 
     try {
       const nextHtml = editorRef.current.getData();
-      const isTemplatePdf = Boolean(selectedTemplateId && format === "pdf");
-
       const response = await fetch(
         `/api/generations/${generation.id}/editor-export`,
         {
@@ -922,10 +822,10 @@ export function TailorDocxEditor({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             format,
-            html: isTemplatePdf ? wrapResumeTemplateHtmlDocument(nextHtml) : nextHtml,
+            html: nextHtml,
             editorHtml: nextHtml,
             documentStyle,
-            rawHtmlDocument: isTemplatePdf,
+            rawHtmlDocument: false,
           }),
         },
       );
@@ -953,7 +853,7 @@ export function TailorDocxEditor({
 
   return (
     <section
-      className={`tailor-docx-editor ${selectedTemplateId ? "is-template-mode" : "is-base-template"} mx-auto w-full max-w-[1440px] px-4 py-6 sm:px-6 lg:px-8`}
+      className="tailor-docx-editor is-base-template mx-auto w-full max-w-[1440px] px-4 py-6 sm:px-6 lg:px-8"
       style={{ color: THEME.ink, ...documentStyleVariables }}
     >
       <style jsx global>{`
@@ -1242,43 +1142,6 @@ export function TailorDocxEditor({
           font-weight: 400;
           line-height: var(--resume-skill-line-height);
           margin: 0;
-        }
-        .tailor-docx-editor.is-template-mode .ck-editor__editable {
-          background: transparent;
-          border: 0 !important;
-          box-shadow: none;
-          color: inherit;
-          font-family: inherit;
-          line-height: normal;
-          max-width: none;
-          min-height: 0;
-          padding: 0 !important;
-          width: auto;
-        }
-        .tailor-docx-editor.is-template-mode .ck-editor__editable.ck-focused {
-          border-color: transparent !important;
-          box-shadow: none !important;
-        }
-        .tailor-docx-editor.is-template-mode .ck-editor__editable .rt-template-document {
-          align-items: center;
-          display: flex;
-          flex-direction: column;
-          padding: 0;
-          width: 816px;
-        }
-        .tailor-docx-editor.is-template-mode .ck-editor__editable .rt-template-flow {
-          align-items: center !important;
-          display: flex !important;
-          flex-direction: column !important;
-          gap: 20px !important;
-          width: 816px !important;
-        }
-        .tailor-docx-editor.is-template-mode .ck-editor__editable .rt-page {
-          background: #fff;
-          flex: 0 0 auto;
-          min-height: 1056px !important;
-          overflow: visible !important;
-          width: 816px !important;
         }
         @media screen and (max-width: 640px) {
           .tailor-docx-editor.is-base-template .ck-editor__editable .resume-skills-grid {
@@ -1619,7 +1482,6 @@ export function TailorDocxEditor({
         .tb-split.is-primary .tb-split-caret {
           border-left: 1px solid oklch(0.56 0.14 55);
         }
-        ${RESUME_TEMPLATE_PICKER_STYLES}
       `}</style>
 
       {/* ── Status bar (above the editor card) ── */}
@@ -1684,18 +1546,6 @@ export function TailorDocxEditor({
               onChange={(colors) => setDocumentStyle((prev) => ({ ...prev, colors }))}
             />
             <div className="tb-divider" />
-            <button
-              type="button"
-              className="tb-ghost-btn"
-              onClick={() => {
-                getCurrentResumeData();
-                setIsTemplateModalOpen(true);
-              }}
-              disabled={!isEditorReady}
-            >
-              <TbIcon name="layout" size={13} />
-              <span>{selectedTemplateLabel}</span>
-            </button>
             <button
               type="button"
               className="tb-ghost-btn"
@@ -1851,19 +1701,6 @@ export function TailorDocxEditor({
         </div>
 
       </div>
-
-      <ResumeTemplatePickerModal
-        open={isTemplateModalOpen}
-        data={toTemplateData(canonicalResumeRef.current)}
-        activeId={selectedTemplateId}
-        onClose={() => setIsTemplateModalOpen(false)}
-        onDefault={() => {
-          void applyEditorTemplate(null).then(() => setIsTemplateModalOpen(false));
-        }}
-        onSelect={(id) => {
-          void applyEditorTemplate(id).then(() => setIsTemplateModalOpen(false));
-        }}
-      />
 
       <textarea value={html} readOnly hidden aria-hidden="true" />
     </section>

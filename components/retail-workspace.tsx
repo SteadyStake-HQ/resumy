@@ -258,35 +258,6 @@ function getWordCount(text: string) {
   return trimmed ? trimmed.split(/\s+/).length : 0;
 }
 
-function getTailoringProgressCap(task: SafeBackgroundTask | null) {
-  if (!task) return 0;
-
-  if (task.status === "completed") return 100;
-  if (task.status === "failed" || task.status === "canceled") {
-    return task.progressPercent;
-  }
-
-  switch (task.stageKey) {
-    case "queued":
-    case "starting":
-      return 8;
-    case "loading_resume":
-      return 16;
-    case "analyzing_job_description":
-      return 34;
-    case "building_prompt":
-      return 44;
-    case "tailoring":
-      return 78;
-    case "validating":
-      return 88;
-    case "saving":
-      return 96;
-    default:
-      return Math.max(task.progressPercent, 12);
-  }
-}
-
 function triggerDownload(url: string, fileName: string) {
   const link = document.createElement("a");
   link.href = url;
@@ -514,9 +485,12 @@ export function RetailWorkspace({
       initialOpenDownloadModal ? initialGeneration ?? null : null,
     );
   const [isEditorModalOpen, setIsEditorModalOpen] = useState(false);
-  const [editorHtml, setEditorHtml] = useState("");
+  const [editorHtml, setEditorHtml] = useState(() =>
+    initialGeneration?.editorTemplateId === "base"
+      ? initialGeneration.editorHtml ?? ""
+      : "",
+  );
   const [tailoringStatusLabel, setTailoringStatusLabel] = useState("");
-  const [tailoringProgress, setTailoringProgress] = useState(0);
   const [tailoringError, setTailoringError] = useState<string | null>(null);
 
   // Task-based tailoring state
@@ -526,6 +500,7 @@ export function RetailWorkspace({
   );
   const [coverLetterGeneration, setCoverLetterGeneration] = useState<SafeGeneration | null>(null);
   const completionFetchInFlightRef = useRef<string | null>(null);
+  const editorHtmlFetchInFlightRef = useRef<string | null>(null);
 
   const selectedResume = useMemo(
     () => resumes.find((r) => r.id === selectedResumeId) ?? null,
@@ -573,6 +548,46 @@ export function RetailWorkspace({
     return `/api/preview?${params.toString()}`;
   }, [customization, firstTemplate, generatedGeneration]);
 
+  useEffect(() => {
+    const generationId = generatedGeneration?.id;
+    if (
+      !generationId ||
+      editorHtml.trim() ||
+      editorHtmlFetchInFlightRef.current === generationId
+    ) {
+      return;
+    }
+
+    let ignore = false;
+    editorHtmlFetchInFlightRef.current = generationId;
+
+    void fetch(`/api/generations/${generationId}/editor-html`, {
+      cache: "no-store",
+    })
+      .then(async (response) => {
+        const payload = await readApiResponse<{ error?: string; html?: string }>(
+          response,
+          "Could not load the tailored resume editor.",
+        );
+        if (!response.ok || !payload.html) {
+          throw new Error(payload.error ?? "Could not load the tailored resume editor.");
+        }
+        if (!ignore) setEditorHtml(payload.html);
+      })
+      .catch((loadError) => {
+        console.warn("Could not preload tailored editor HTML.", loadError);
+      })
+      .finally(() => {
+        if (editorHtmlFetchInFlightRef.current === generationId) {
+          editorHtmlFetchInFlightRef.current = null;
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [editorHtml, generatedGeneration?.id]);
+
   // ── Poll for task completion ────────────────────────────────────────────────
   const fetchGeneration = useCallback(async (generationId: string) => {
     try {
@@ -601,7 +616,6 @@ export function RetailWorkspace({
       }
 
       // Open the CKEditor modal with the completed result.
-      setTailoringProgress(100);
       setTailoringStatusLabel("Ready to edit");
       setTailoringError(null);
       setIsEditorModalOpen(true);
@@ -611,27 +625,6 @@ export function RetailWorkspace({
       return false;
     }
   }, []);
-
-  useEffect(() => {
-    if (!tailoringTask || !isRunning) return;
-
-    const timer = window.setInterval(() => {
-      setTailoringProgress((currentProgress) => {
-        const serverProgress = tailoringTask.progressPercent;
-        const baseProgress = Math.max(currentProgress, serverProgress);
-        const cap = Math.max(serverProgress, getTailoringProgressCap(tailoringTask));
-
-        if (baseProgress >= cap) {
-          return baseProgress;
-        }
-
-        const nextStep = Math.max(0.6, (cap - baseProgress) * 0.08);
-        return Math.min(cap, baseProgress + nextStep);
-      });
-    }, 700);
-
-    return () => window.clearInterval(timer);
-  }, [isRunning, tailoringTask]);
 
   useEffect(() => {
     const handleOpenTask = (event: Event) => {
@@ -667,7 +660,6 @@ export function RetailWorkspace({
 
         setTailoringTask(updated);
         setTailoringStatusLabel(updated.stageLabel);
-        setTailoringProgress((current) => Math.max(current, updated.progressPercent));
 
         if (updated.status === "completed" && updated.resultGenerationId) {
           if (completionFetchInFlightRef.current === updated.resultGenerationId) {
@@ -811,7 +803,6 @@ export function RetailWorkspace({
     setGeneratedGeneration(null);
     setCompletionModalGeneration(null);
     setEditorHtml("");
-    setTailoringProgress(0);
     setTailoringStatusLabel("Queuing tailoring...");
     setTailoringError(null);
     completionFetchInFlightRef.current = null;
@@ -864,7 +855,6 @@ export function RetailWorkspace({
 
       setTailoringTask(payload.task);
       setTailoringStatusLabel(payload.task.stageLabel);
-      setTailoringProgress(payload.task.progressPercent);
       setTailoringError(null);
 
       // Open the task queue panel and insert the new task immediately. The
@@ -1488,7 +1478,6 @@ export function RetailWorkspace({
         task={tailoringTask}
         generation={generatedGeneration}
         statusLabel={tailoringStatusLabel}
-        progress={tailoringProgress}
         editorHtml={editorHtml}
         sections={[]}
         isStreaming={false}

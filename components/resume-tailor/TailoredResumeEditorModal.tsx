@@ -11,26 +11,15 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { ResumeColorThemeControls } from "@/components/resume-tailor/ResumeColorThemeControls";
-import {
-  RESUME_TEMPLATE_CATALOGUE,
-  RESUME_TEMPLATE_PICKER_STYLES,
-  ResumeTemplatePickerModal,
-  renderResumeTemplateToHtml,
-  toTemplateData,
-  wrapResumeTemplateHtmlDocument,
-  type ResumeTemplateId,
-} from "@/components/resume-templates";
 import type { SafeBackgroundTask } from "@/lib/background-task";
 import type { SafeGeneration } from "@/lib/generation";
 import { readApiResponse } from "@/lib/client-api";
 import { downloadFileResponse } from "@/lib/client-download";
-import { buildClientEditorHtmlFromResume } from "@/lib/client-editor-html";
 import {
   buildAutoPaginatedEditorHtml,
   relayoutEditorPageBreaks,
 } from "@/lib/client-editor-pagination";
 import { loadCKEditor, type EditorHandle, type LoadedCKEditor } from "@/lib/ckeditor-client";
-import { extractResumeDataFromEditorHtml } from "@/lib/editor-html-parser";
 import {
   DEFAULT_RESUME_DOCUMENT_STYLE,
   RESUME_FONT_OPTIONS,
@@ -58,7 +47,6 @@ type TailoredResumeEditorModalProps = {
   task: SafeBackgroundTask | null;
   generation: SafeGeneration | null;
   statusLabel: string;
-  progress: number;
   editorHtml: string;
   sections: StreamedResumeSection[];
   isStreaming: boolean;
@@ -81,6 +69,9 @@ const THEME = {
   rule: "#e4cfaa",
   ruleSoft: "#eadcc7",
   danger: "#9b2f22",
+  navy: "#1e3a5f",
+  navySoft: "#2d4e7a",
+  mint: "#7fc8ae",
 };
 
 const MIN_ZOOM = 50;
@@ -197,8 +188,6 @@ function TbIcon({ name, size = 14 }: { name: string; size?: number }) {
       return <svg width={s} height={s} viewBox="0 0 16 16"><path d="M3 3h8l2 2v8H3z" {...SV} /><path d="M5 3v4h6V3" {...SV} /><path d="M5 13v-4h6v4" {...SV} /></svg>;
     case "download":
       return <svg width={s} height={s} viewBox="0 0 16 16"><path d="M8 2v8" {...SV} /><path d="M5 7l3 3 3-3" {...SV} /><path d="M3 13h10" {...SV} /></svg>;
-    case "layout":
-      return <svg width={s} height={s} viewBox="0 0 16 16"><rect x="2.5" y="3" width="4.2" height="10" rx="0.8" {...SV} /><rect x="8.2" y="3" width="5.3" height="4" rx="0.8" {...SV} /><rect x="8.2" y="9" width="5.3" height="4" rx="0.8" {...SV} /></svg>;
     case "autoBreak":
       return <svg width={s} height={s} viewBox="0 0 16 16"><path d="M4 2.5h8" {...SV} /><path d="M4 13.5h8" {...SV} /><path d="M3 8h10" stroke="currentColor" strokeWidth={1.5} strokeDasharray="2 2" strokeLinecap="round" /><path d="M8 4.5v2.2" {...SV} /><path d="M8 9.3v2.2" {...SV} /></svg>;
     case "chevron":
@@ -455,7 +444,6 @@ export function TailoredResumeEditorModal({
   task,
   generation,
   statusLabel,
-  progress,
   editorHtml,
   sections,
   isStreaming,
@@ -482,15 +470,8 @@ export function TailoredResumeEditorModal({
   const [dirtySections, setDirtySections] = useState<Set<string>>(() => new Set());
   const [documentStyle, setDocumentStyle] = useState(DEFAULT_RESUME_DOCUMENT_STYLE);
   const [zoom, setZoom] = useState(100);
-  const [draftMode, setDraftMode] = useState(false);
   const [activeSection, setActiveSection] = useState<string | null>(null);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<ResumeTemplateId | null>(null);
-  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const editorHtmlRef = useRef(editorHtml);
-  // Stores the base-format (CKEditor) HTML so it can be restored when the user
-  // deselects a template.  Set when a template is first applied; cleared when
-  // returning to default so the next template application saves a fresh snapshot.
-  const preTemplateHtmlRef = useRef<string | null>(null);
   const documentStyleVariables = getResumeStyleCssVariables(documentStyle) as CSSProperties;
 
   // Scroll the CKEditor shell to a named resume section
@@ -522,9 +503,6 @@ export function TailoredResumeEditorModal({
   const currentMarginLabel = RESUME_MARGIN_PRESETS[documentStyle.marginPreset]?.label ?? "Margins";
   const currentFontLabel =
     RESUME_FONT_OPTIONS.find((f) => f.value === documentStyle.fontFamily)?.label ?? "Font";
-  const selectedTemplateLabel =
-    RESUME_TEMPLATE_CATALOGUE.find((entry) => entry.id === selectedTemplateId)
-      ?.shortLabel ?? "Templates";
 
   // Page size options for toolbar
   const pageSizeOptions: TbMenuOption[] = (
@@ -545,79 +523,12 @@ export function TailoredResumeEditorModal({
     fontFamily: f.value,
   }));
 
-  const getCurrentResumeData = useCallback(() => {
-    return extractResumeDataFromEditorHtml(
-      editorRef.current?.getData() ?? editorHtmlRef.current,
-      generation?.tailoredData ?? {
-        personalInfo: { name: "", title: "", email: "", phone: "", location: "", links: [] },
-        summary: "",
-        skills: [],
-        experience: [],
-        education: [],
-      },
-    );
-  }, [generation?.tailoredData]);
-
-  // When a template is active, extract resume data from the SAVED base HTML
-  // rather than from the template HTML currently in the editor.  The template
-  // picker uses this to show accurate preview data regardless of which template
-  // is currently loaded into CKEditor.
-  const getBaseResumeData = useCallback(() => {
-    const baseHtml = preTemplateHtmlRef.current;
-    if (baseHtml) {
-      return extractResumeDataFromEditorHtml(baseHtml, getCurrentResumeData());
-    }
-    return getCurrentResumeData();
-  }, [getCurrentResumeData]);
-
-  const applyEditorTemplate = useCallback(
-    async (templateId: ResumeTemplateId | null) => {
-      let nextHtml: string;
-
-      if (!templateId) {
-        // ── Returning to default ──────────────────────────────────────────────
-        // Restore the exact CKEditor HTML saved before any template was applied.
-        // Never try to parse template HTML back into resume data — CKEditor may
-        // have modified the template structure, causing garbled skill sections.
-        const savedHtml = preTemplateHtmlRef.current;
-        preTemplateHtmlRef.current = null;
-
-        nextHtml = savedHtml ?? buildClientEditorHtmlFromResume(getCurrentResumeData());
-      } else {
-        // ── Applying (or switching) a template ────────────────────────────────
-        // If we're not already in template mode, save the current base HTML so
-        // it can be restored later.  If already in template mode (switching
-        // between templates), the saved snapshot is still valid — don't overwrite.
-        if (!preTemplateHtmlRef.current) {
-          preTemplateHtmlRef.current =
-            editorRef.current?.getData() ?? editorHtmlRef.current;
-        }
-
-        // Build template HTML from the SAVED base HTML (not the template HTML
-        // currently in the editor) so data extraction is always reliable.
-        const baseHtml = preTemplateHtmlRef.current;
-        const resumeData = extractResumeDataFromEditorHtml(
-          baseHtml,
-          getCurrentResumeData(),
-        );
-        nextHtml = renderResumeTemplateToHtml(templateId, toTemplateData(resumeData));
-      }
-
-      editorRef.current?.setData?.(nextHtml);
-      editorHtmlRef.current = nextHtml;
-      onEditorHtmlChange(nextHtml);
-      setSelectedTemplateId(templateId);
-      setDirtySections(new Set(["document"]));
-    },
-    [getCurrentResumeData, onEditorHtmlChange],
-  );
-
   const applyAutoPageBreaks = useCallback(() => {
     const currentHtml = editorRef.current?.getData() ?? editorHtmlRef.current;
     const nextHtml = buildAutoPaginatedEditorHtml(
       currentHtml,
       documentStyle,
-      `tailored-resume-ckeditor ${selectedTemplateId ? "is-custom-template" : "is-base-template"}`,
+      "tailored-resume-ckeditor is-base-template",
     );
 
     editorRef.current?.setData?.(nextHtml);
@@ -628,7 +539,7 @@ export function TailoredResumeEditorModal({
     window.requestAnimationFrame(() => {
       relayoutEditorPageBreaks(editorShellRef.current);
     });
-  }, [documentStyle, onEditorHtmlChange, selectedTemplateId]);
+  }, [documentStyle, onEditorHtmlChange]);
 
   useEffect(() => {
     const shell = editorShellRef.current;
@@ -736,22 +647,13 @@ export function TailoredResumeEditorModal({
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, [documentStyle, editorHtml, selectedTemplateId, zoom]);
+  }, [documentStyle, editorHtml, zoom]);
 
   useEffect(() => {
     if (generation?.editorDocumentStyle) {
       setDocumentStyle(normalizeResumeDocumentStyle(generation.editorDocumentStyle));
     }
   }, [generation?.editorDocumentStyle]);
-
-  useEffect(() => {
-    const templateId = generation?.editorTemplateId;
-    setSelectedTemplateId(
-      RESUME_TEMPLATE_CATALOGUE.some((entry) => entry.id === templateId)
-        ? (templateId as ResumeTemplateId)
-        : null,
-    );
-  }, [generation?.editorTemplateId]);
 
   useEffect(() => {
     let ignore = false;
@@ -780,7 +682,7 @@ export function TailoredResumeEditorModal({
         body: JSON.stringify({
           editorHtml: nextHtml,
           editorDocumentStyle: documentStyle,
-          editorTemplateId: selectedTemplateId ?? "base",
+          editorTemplateId: "base",
         }),
       });
       const payload = await readApiResponse<SaveResponse>(
@@ -805,7 +707,7 @@ export function TailoredResumeEditorModal({
     } finally {
       setIsSaving(false);
     }
-  }, [documentStyle, generation, onEditorHtmlChange, onGenerationSaved, selectedTemplateId, showErrorToast]);
+  }, [documentStyle, generation, onEditorHtmlChange, onGenerationSaved, showErrorToast]);
 
   const exportEditorDocument = useCallback(
     async (format: "pdf" | "docx") => {
@@ -820,17 +722,15 @@ export function TailoredResumeEditorModal({
 
       try {
         const nextHtml = editorRef.current?.getData() ?? editorHtmlRef.current;
-        const isTemplatePdf = Boolean(selectedTemplateId && format === "pdf");
-
         const response = await fetch(`/api/generations/${generation.id}/editor-export`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             format,
-            html: isTemplatePdf ? wrapResumeTemplateHtmlDocument(nextHtml) : nextHtml,
+            html: nextHtml,
             editorHtml: nextHtml,
             documentStyle,
-            rawHtmlDocument: isTemplatePdf,
+            rawHtmlDocument: false,
           }),
         });
         await downloadFileResponse(
@@ -849,7 +749,7 @@ export function TailoredResumeEditorModal({
         setExportingFormat(null);
       }
     },
-    [documentStyle, generation, onEditorHtmlChange, selectedTemplateId, showErrorToast],
+    [documentStyle, generation, onEditorHtmlChange, showErrorToast],
   );
 
   const statusText =
@@ -858,6 +758,41 @@ export function TailoredResumeEditorModal({
       (isStreaming ? "Streaming tailored sections..." : generation ? "Ready to edit" : "Preparing..."));
 
   const isExporting = exportingFormat !== null;
+  const resumeTitle =
+    generation?.sourceResume?.fileName ?? task?.fileName ?? "Tailored resume";
+  const roleLabel = [
+    generation?.jobDescription?.title,
+    generation?.jobDescription?.company,
+  ]
+    .filter(Boolean)
+    .join(" at ");
+  const statusColor = error
+    ? THEME.danger
+    : generation
+      ? THEME.mint
+      : "#f4b83c";
+  const streamedOutlineSections = sections.filter(
+    (section) => section.section !== "template",
+  );
+  const outlineSections = streamedOutlineSections.length
+    ? streamedOutlineSections
+    : generation
+      ? [
+          { section: "profile", html: "" },
+          ...(generation.tailoredData.summary
+            ? [{ section: "summary", html: "" }]
+            : []),
+          ...(generation.tailoredData.skills.length
+            ? [{ section: "skills", html: "" }]
+            : []),
+          ...(generation.tailoredData.experience.length
+            ? [{ section: "experience", html: "" }]
+            : []),
+          ...(generation.tailoredData.education.length
+            ? [{ section: "education", html: "" }]
+            : []),
+        ]
+      : [];
 
   return (
     <Dialog open={open} onClose={onClose} className="relative z-[80]">
@@ -865,7 +800,7 @@ export function TailoredResumeEditorModal({
       <div className="fixed inset-0 overflow-y-auto p-3 sm:p-6">
         <div className="flex min-h-full items-center justify-center">
           <DialogPanel
-            className="w-full max-w-[1480px] overflow-hidden rounded-[22px]"
+            className="flex max-h-[calc(100vh-24px)] w-full max-w-[1380px] flex-col overflow-hidden rounded-[16px]"
             style={{
               background: THEME.paper,
               border: `1px solid ${THEME.rule}`,
@@ -985,35 +920,6 @@ export function TailoredResumeEditorModal({
                 min-height: var(--resume-page-min-height);
                 padding: var(--resume-margin-top) var(--resume-margin-right) var(--resume-margin-bottom) var(--resume-margin-left) !important;
                 width: min(var(--resume-page-width), 100%);
-              }
-              /* ── Custom-template mode overrides ─────────────────────────────── */
-              /* When a resume template is applied the editable must not apply      */
-              /* document-style padding or page-width constraints because the        */
-              /* template already defines its own layout (816 px fixed-width pages). */
-              /* Stripping these prevents the template content overflowing the       */
-              /* padded editable and causing unwanted horizontal scroll.             */
-              .tailored-resume-ckeditor.is-custom-template .ck.ck-editor__main {
-                padding: 24px 24px 40px 24px;
-              }
-              .tailored-resume-ckeditor.is-custom-template .ck-editor__editable {
-                background: transparent !important;
-                border: none !important;
-                box-shadow: none !important;
-                max-width: none !important;
-                min-height: 0 !important;
-                padding: 0 !important;
-                width: fit-content !important;
-              }
-              .tailored-resume-ckeditor.is-custom-template .ck-editor__editable.ck-focused {
-                border-color: transparent !important;
-                box-shadow: none !important;
-              }
-              .tailored-resume-ckeditor.is-custom-template .ck-editor__editable .rt-page {
-                background: #fff;
-                flex: 0 0 auto;
-                min-height: 1056px !important;
-                overflow: visible !important;
-                width: 816px !important;
               }
               .tailored-resume-ckeditor .ck-editor__editable.ck-focused {
                 border-color: #aeb9bb !important;
@@ -1433,24 +1339,57 @@ export function TailoredResumeEditorModal({
               .tb-split.is-primary .tb-split-caret {
                 border-left: 1px solid oklch(0.56 0.14 55);
               }
-              ${RESUME_TEMPLATE_PICKER_STYLES}
+              @media screen and (max-width: 720px) {
+                .tb-editor-bar {
+                  align-items: stretch;
+                  padding: 8px;
+                }
+                .tb-group {
+                  flex-wrap: wrap;
+                  row-gap: 6px;
+                }
+                .tb-divider {
+                  display: none;
+                }
+              }
             `}</style>
 
             {/* ── Modal header ── */}
             <div
-              className="flex flex-wrap items-start justify-between gap-4 p-5"
-              style={{ borderBottom: `1px solid ${THEME.ruleSoft}`, background: THEME.paperWarm }}
+              className="flex flex-wrap items-center justify-between gap-4 px-5 py-4"
+              style={{
+                borderBottom: `1px solid ${THEME.navySoft}`,
+                background: THEME.navy,
+                color: "#fff",
+              }}
             >
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.22em]" style={{ color: THEME.moss }}>
-                  Tailored resume editor
-                </p>
-                <DialogTitle className="mt-2 font-[var(--font-fraunces)] text-3xl font-semibold tracking-tight">
-                  Review and edit while tailoring runs
-                </DialogTitle>
-                <p className="mt-2 text-sm font-semibold" style={{ color: error ? THEME.danger : THEME.ink3 }}>
-                  {statusText}
-                </p>
+              <div className="min-w-0">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div
+                    className="grid h-10 w-10 shrink-0 place-items-center rounded-[8px] text-lg font-black"
+                    style={{ background: "rgba(255,255,255,0.1)", color: THEME.mint }}
+                    aria-hidden="true"
+                  >
+                    T
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: "#9db8d4" }}>
+                      Tailored resume editor
+                    </p>
+                    <DialogTitle className="truncate text-xl font-bold tracking-normal">
+                      {resumeTitle}
+                    </DialogTitle>
+                  </div>
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 pl-[52px] text-xs font-semibold" style={{ color: "#d8e6f5" }}>
+                  {roleLabel ? <span>{roleLabel}</span> : null}
+                  <span className="inline-flex min-w-0 items-center gap-2">
+                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: statusColor }} />
+                    <span className="truncate" style={{ color: error ? "#ffc7bd" : "#d8e6f5" }}>
+                      {statusText}
+                    </span>
+                  </span>
+                </div>
               </div>
               <div className="flex flex-wrap items-center justify-end gap-2">
                 {generation && onOpenEditPage ? (
@@ -1467,8 +1406,12 @@ export function TailoredResumeEditorModal({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="grid h-10 w-10 place-items-center rounded-[12px]"
-                  style={{ border: `1px solid ${THEME.rule}`, background: "#fff", color: THEME.ink3 }}
+                  className="grid h-10 w-10 place-items-center rounded-[8px] text-xl"
+                  style={{
+                    border: "1px solid rgba(255,255,255,0.24)",
+                    background: "rgba(255,255,255,0.1)",
+                    color: "#fff",
+                  }}
                   aria-label="Close tailored resume editor"
                 >
                   ×
@@ -1476,37 +1419,13 @@ export function TailoredResumeEditorModal({
               </div>
             </div>
 
-            {/* ── Progress bar ── */}
-            <div className="px-5 pt-4">
-              <div
-                className="h-2 overflow-hidden rounded-full"
-                style={{ background: THEME.ruleSoft }}
-                aria-label="Tailoring progress"
-              >
-                <div
-                  className="h-full transition-[width]"
-                  style={{
-                    width: `${Math.max(4, Math.min(100, progress))}%`,
-                    background: error ? THEME.danger : THEME.moss,
-                  }}
-                />
-              </div>
-              <div
-                className="mt-2 flex flex-wrap justify-between gap-2 text-xs font-bold uppercase tracking-[0.16em]"
-                style={{ color: THEME.ink3 }}
-              >
-                <span>{task?.stageLabel ?? statusLabel}</span>
-                <span>{Math.round(progress)}%</span>
-              </div>
-            </div>
-
             {/* ── Editor grid ── */}
-            <div className="grid gap-4 p-5 xl:grid-cols-[minmax(0,1fr)_260px]">
+            <div className="grid min-h-0 flex-1 overflow-y-auto xl:grid-cols-[minmax(0,1fr)_240px] xl:overflow-hidden">
               <div
                 ref={editorShellRef}
-                className={`tailored-resume-ckeditor tailored-resume-ckeditor-shell ${selectedTemplateId ? "is-custom-template" : "is-base-template"} h-[700px] overflow-auto rounded-[10px]`}
+                className="tailored-resume-ckeditor tailored-resume-ckeditor-shell is-base-template h-[min(72vh,760px)] min-h-[520px] overflow-auto"
                 style={{
-                  border: `1px solid ${THEME.ruleSoft}`,
+                  borderRight: `1px solid ${THEME.ruleSoft}`,
                   "--tb-zoom": zoom / 100,
                 } as CSSProperties}
               >
@@ -1551,15 +1470,6 @@ export function TailoredResumeEditorModal({
                     <button
                       type="button"
                       className="tb-ghost-btn"
-                      onClick={() => setIsTemplateModalOpen(true)}
-                      disabled={!generation}
-                    >
-                      <TbIcon name="layout" size={13} />
-                      <span>{selectedTemplateLabel}</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="tb-ghost-btn"
                       onClick={applyAutoPageBreaks}
                     >
                       <TbIcon name="autoBreak" size={13} />
@@ -1568,15 +1478,6 @@ export function TailoredResumeEditorModal({
                   </div>
                   <div className="tb-group">
                     <TbZoom zoom={zoom} setZoom={setZoom} />
-                    <div className="tb-divider" />
-                    <button
-                      type="button"
-                      className={`tb-toggle${draftMode ? " is-on" : ""}`}
-                      onClick={() => setDraftMode((d) => !d)}
-                    >
-                      <span className="tb-toggle-dot" />
-                      HTML Draft
-                    </button>
                     <div className="tb-divider" />
                     <button
                       type="button"
@@ -1671,39 +1572,39 @@ export function TailoredResumeEditorModal({
                 )}
               </div>
 
-              {/* ── Sidebar panel (tabs: Sections / Templates) ── */}
+              {/* ── Section navigation ── */}
               <aside
-                className="rounded-[10px] overflow-hidden flex flex-col"
-                style={{ border: `1px solid ${THEME.ruleSoft}`, background: THEME.paperWarm }}
+                className="flex min-h-0 flex-col overflow-hidden"
+                style={{ background: THEME.paperWarm }}
               >
                 {/* Section navigation */}
                 <div
                   className="px-4 py-3"
                   style={{ borderBottom: `1px solid ${THEME.ruleSoft}` }}
                 >
-                  <p className="text-xs font-black uppercase tracking-[0.18em]" style={{ color: THEME.moss }}>
-                    Sections
-                  </p>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs font-black uppercase tracking-[0.18em]" style={{ color: THEME.moss }}>
+                      Outline
+                    </p>
+                    <span className="text-xs font-bold" style={{ color: THEME.ink3 }}>
+                      {outlineSections.length}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Tab: Sections */}
-                <div className="p-4 flex-1">
-                    {sections.length ? (
+                <div className="flex-1 overflow-y-auto p-3">
+                    {outlineSections.length ? (
                       <>
-                        <p className="mb-2 text-[10px] font-semibold leading-5" style={{ color: THEME.ink3 }}>
-                          Click to jump to that section
-                        </p>
                         <div className="space-y-1.5">
-                          {sections
-                            .filter((section) => section.section !== "template")
-                            .map((section) => {
+                          {outlineSections.map((section) => {
                               const isActive = activeSection === section.section;
                               return (
                                 <button
                                   key={section.section}
                                   type="button"
                                   onClick={() => scrollToSection(section.section)}
-                                  className="w-full rounded-[8px] px-3 py-2 text-left text-sm font-semibold transition-all"
+                                  className="w-full rounded-[6px] px-3 py-2.5 text-left text-sm font-semibold transition-all"
                                   style={{
                                     background: isActive ? THEME.paperWarm : "#fff",
                                     border: isActive
@@ -1751,19 +1652,6 @@ export function TailoredResumeEditorModal({
 
               </aside>
             </div>
-
-            <ResumeTemplatePickerModal
-              open={isTemplateModalOpen}
-              data={toTemplateData(getBaseResumeData())}
-              activeId={selectedTemplateId}
-              onClose={() => setIsTemplateModalOpen(false)}
-              onDefault={() => {
-                void applyEditorTemplate(null).then(() => setIsTemplateModalOpen(false));
-              }}
-              onSelect={(id) => {
-                void applyEditorTemplate(id).then(() => setIsTemplateModalOpen(false));
-              }}
-            />
 
           </DialogPanel>
         </div>

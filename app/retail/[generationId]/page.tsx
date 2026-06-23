@@ -21,6 +21,7 @@ import {
 } from "@/lib/huggingface-router";
 import { toSafeJobDescription } from "@/lib/job-description";
 import { connectToDatabase } from "@/lib/db";
+import { Types } from "@/lib/id";
 import { type ResumeSummary, toSafeResume } from "@/lib/resume";
 import { listActiveDesignTemplates } from "@/lib/templates";
 import { toSafeUser } from "@/lib/user";
@@ -54,7 +55,7 @@ export default async function RetailGenerationPage({
     ? resolvedSearchParams.modal[0]
     : resolvedSearchParams.modal;
 
-  if (!generationId || !/^[0-9a-fA-F]{24}$/.test(generationId)) {
+  if (!generationId || !Types.ObjectId.isValid(generationId)) {
     redirect("/retail");
   }
 
