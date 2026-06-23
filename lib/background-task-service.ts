@@ -30,6 +30,7 @@ import {
   toSafeResume,
 } from "@/lib/resume";
 import { extractKeywordCandidates, normalizeAnalyzedJobDescription } from "@/lib/job-description";
+import { clipResumePromptText } from "@/lib/prompts/prompt-utils";
 import { createInitialTailoredResumeDocumentStyle } from "@/lib/resume-document-style";
 import {
   assessResumeParseConfidence,
@@ -56,6 +57,11 @@ const HUGGINGFACE_RESUME_EXTRACTION_AI_TIMEOUT_MS = 240 * 1000;
 const RESUME_ANALYSIS_AI_TIMEOUT_MS = 90 * 1000;
 const RESUME_TAILORING_AI_TIMEOUT_MS = 120 * 1000;
 const JOB_DESCRIPTION_ANALYSIS_AI_TIMEOUT_MS = 90 * 1000;
+// Overall wall-clock budget for the tailoring pipeline. Kept comfortably under
+// the route's `maxDuration` (300s) so that if any step hangs, the task is
+// concluded as failed in the DB *before* the platform kills the function and
+// leaves the task stuck in "running" forever.
+const RESUME_TAILORING_PIPELINE_BUDGET_MS = 255 * 1000;
 
 function buildOriginalResumeTailoringContext(resume: {
   fileName?: string | null;
@@ -2008,6 +2014,12 @@ export async function processResumeTailoringTask(taskId: string) {
   const aiUsage = createAIUsageAccumulator();
 
   try {
+    // Race the whole pipeline against an overall budget so no single hung step
+    // (AI provider, DB, or unexpected stall) can leave the task running until
+    // the serverless function is force-killed. On timeout this rejects and the
+    // catch below marks the task failed with a clear message.
+    const pipelineResult = await withTimeout(
+      (async () => {
     // ── Step 1: Load resume and user settings ─────────────────────────────────
     await updateTaskStage(taskId, processingToken, "loading_resume", "Loading your resume", 10);
 
@@ -2029,7 +2041,13 @@ export async function processResumeTailoringTask(taskId: string) {
 
     pipelineDebug.provider = preferredAI;
 
-    const jobDescriptionContent = task.tailoringPayload.jobDescriptionContent ?? "";
+    // Clip the JD once up front so every downstream synchronous parser
+    // (keyword extraction, JD summary parsing, quality validation) works on a
+    // bounded input — an oversized or pathological description can otherwise
+    // stall the event loop at an unpredictable step.
+    const jobDescriptionContent = clipResumePromptText(
+      task.tailoringPayload.jobDescriptionContent ?? "",
+    );
 
     // ── Step 2: Load pre-computed JD analysis (or run inline if not ready) ────
     await updateTaskStage(taskId, processingToken, "analyzing_job_description", "Analyzing job description", 25);
@@ -2243,6 +2261,12 @@ export async function processResumeTailoringTask(taskId: string) {
       task: toSafeBackgroundTask(task),
       generation: toSafeGeneration(generation),
     };
+      })(),
+      RESUME_TAILORING_PIPELINE_BUDGET_MS,
+      "Resume tailoring timed out before it could finish.",
+    );
+
+    return pipelineResult;
   } catch (error) {
     if (
       error instanceof Error &&
