@@ -34,6 +34,18 @@ export function getDb() {
       ssl: shouldUseSsl(connectionString)
         ? { rejectUnauthorized: false }
         : undefined,
+      // Hard timeouts so a single query can never hang the process. node-postgres
+      // has NO default query timeout, so a query issued on a connection the
+      // provider has silently dropped/recycled (common with the Supabase pooler)
+      // would otherwise wait forever — which previously stalled the tailoring
+      // pipeline until the 8-minute task watchdog killed it.
+      // `query_timeout` rejects client-side even if the socket is dead;
+      // `statement_timeout` aborts the query server-side as a backstop.
+      statement_timeout: 30_000,
+      query_timeout: 30_000,
+      connectionTimeoutMillis: 15_000,
+      idleTimeoutMillis: 30_000,
+      max: 10,
     });
     const adapter = new PrismaPg(globalForPrisma.prismaPool);
     globalForPrisma.prisma = new PrismaClient({ adapter });

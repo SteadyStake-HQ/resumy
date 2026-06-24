@@ -1455,78 +1455,9 @@ function TaskDetailsModal({
                 </button>
               </div>
 
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 8,
-                  marginTop: 16,
-                  position: "relative",
-                  zIndex: 1,
-                }}
-              >
-                <CountChip status={task.status} count={1} label={task.status} />
-                <div
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: "6px 12px",
-                    borderRadius: 999,
-                    background: "#F3EBFF",
-                    border: `1.5px solid ${KAWAII.line}`,
-                    color: KAWAII.accent,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    fontFamily: '"JetBrains Mono", ui-monospace, monospace',
-                  }}
-                >
-                  {task.progressPercent}%
-                </div>
-                {task.aiUsage && task.aiUsage.totalTokens > 0 ? (
-                  <>
-                    <div
-                      title={`${task.aiUsage.inputTokens.toLocaleString()} input · ${task.aiUsage.outputTokens.toLocaleString()} output · ${task.aiUsage.calls} AI call${task.aiUsage.calls === 1 ? "" : "s"}`}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 6,
-                        padding: "6px 12px",
-                        borderRadius: 999,
-                        background: KAWAII.surface,
-                        border: `1.5px solid ${KAWAII.line}`,
-                        color: KAWAII.ink,
-                        fontSize: 12,
-                        fontWeight: 700,
-                        fontFamily: '"JetBrains Mono", ui-monospace, monospace',
-                      }}
-                    >
-                      <span style={{ opacity: 0.7 }}>⛁</span>
-                      {formatTokenCount(task.aiUsage.totalTokens)} tokens
-                    </div>
-                    <div
-                      title="Estimated cost of this run"
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        padding: "6px 12px",
-                        borderRadius: 999,
-                        background: KAWAII.surface,
-                        border: `1.5px solid ${KAWAII.line}`,
-                        color: KAWAII.accent,
-                        fontSize: 12,
-                        fontWeight: 700,
-                        fontFamily: '"JetBrains Mono", ui-monospace, monospace',
-                      }}
-                    >
-                      {formatAIUsageCost(task.aiUsage.estimatedCostUsd)}
-                    </div>
-                  </>
-                ) : null}
-              </div>
             </div>
 
-            <div style={{ padding: "0 22px 18px 22px" }}>
+            <div style={{ padding: "16px 22px 18px 22px" }}>
               {task.status === "uploading" ||
               task.status === "running" ||
               task.status === "streaming" ? (
@@ -1543,11 +1474,73 @@ function TaskDetailsModal({
                 style={{
                   display: "flex",
                   flexWrap: "wrap",
-                  justifyContent: "flex-end",
-                  gap: 8,
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 10,
                   marginBottom: 18,
                 }}
               >
+                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+                  <CountChip status={task.status} count={1} label={task.status} />
+                  <div
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "6px 12px",
+                      borderRadius: 999,
+                      background: "#F3EBFF",
+                      border: `1.5px solid ${KAWAII.line}`,
+                      color: KAWAII.accent,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      fontFamily: '"JetBrains Mono", ui-monospace, monospace',
+                    }}
+                  >
+                    {task.progressPercent}%
+                  </div>
+                  {task.aiUsage && task.aiUsage.totalTokens > 0 ? (
+                    <>
+                      <div
+                        title={`${task.aiUsage.inputTokens.toLocaleString()} input · ${task.aiUsage.outputTokens.toLocaleString()} output · ${task.aiUsage.calls} AI call${task.aiUsage.calls === 1 ? "" : "s"}`}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                          padding: "6px 12px",
+                          borderRadius: 999,
+                          background: KAWAII.surface,
+                          border: `1.5px solid ${KAWAII.line}`,
+                          color: KAWAII.ink,
+                          fontSize: 12,
+                          fontWeight: 700,
+                          fontFamily: '"JetBrains Mono", ui-monospace, monospace',
+                        }}
+                      >
+                        <span style={{ opacity: 0.7 }}>⛁</span>
+                        {formatTokenCount(task.aiUsage.totalTokens)} tokens
+                      </div>
+                      <div
+                        title="Estimated cost of this run"
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          padding: "6px 12px",
+                          borderRadius: 999,
+                          background: KAWAII.surface,
+                          border: `1.5px solid ${KAWAII.line}`,
+                          color: KAWAII.accent,
+                          fontSize: 12,
+                          fontWeight: 700,
+                          fontFamily: '"JetBrains Mono", ui-monospace, monospace',
+                        }}
+                      >
+                        {formatAIUsageCost(task.aiUsage.estimatedCostUsd)}
+                      </div>
+                    </>
+                  ) : null}
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
                 {task.type === "resume_tailoring" &&
                 (task.status === "pending" ||
                   task.status === "running" ||
@@ -1689,6 +1682,7 @@ function TaskDetailsModal({
                     disabled={isQueueBusy}
                   />
                 ) : null}
+                </div>
               </div>
 
               {task.error ? (
